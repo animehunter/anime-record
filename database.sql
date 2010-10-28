@@ -1,0 +1,47 @@
+CREATE TABLE [genre] (
+[id] INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+[name] VARCHAR(100)  UNIQUE NOT NULL
+);
+
+CREATE TABLE [show] (
+[id] INTEGER  PRIMARY KEY AUTOINCREMENT NOT NULL,
+[date_added] TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+[date_updated] TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+[title] NVARCHAR(1000)  NOT NULL,
+[type] VARCHAR(50)  NOT NULL,
+[year] INTEGER DEFAULT '1900' NOT NULL,
+[season] INTEGER DEFAULT '1' NOT NULL,
+[episodes] INTEGER DEFAULT '0' NOT NULL,
+[rating] INTEGER DEFAULT '5' NOT NULL,
+[comment] NVARCHAR(2000)  NOT NULL
+);
+
+CREATE TABLE [show_genre] (
+[show_id] INTEGER  NOT NULL,
+[genre_id] INTEGER  NOT NULL
+);
+
+CREATE INDEX [show_genre_index] ON [show_genre](
+[show_id]  ASC,
+[genre_id]  ASC
+);
+
+CREATE TRIGGER [ON_TBL_SHOW_DELETE_ITEM] 
+AFTER DELETE ON [show] 
+FOR EACH ROW 
+BEGIN 
+
+delete from show_genre where show_id = old.id;
+
+END;
+
+CREATE TRIGGER [ON_TBL_SHOW_UPDATE] 
+AFTER UPDATE ON [show] 
+FOR EACH ROW 
+BEGIN 
+
+update show
+set date_updated = datetime('now')
+where id = new.id;
+
+END;
