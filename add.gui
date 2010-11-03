@@ -22,7 +22,7 @@
 	<button class="" id="search" enabled="true" text="Search" anchor_tl="0" anchor_br="0" dist_tl_x="331" dist_tl_y="28" dist_br_x="379" dist_br_y="48" geom="331,28,379,48"/>
 	<button class="" id="update" enabled="true" text="Update" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="386" dist_br_x="306" dist_br_y="409" geom="231,386,306,409"/>
 	<label class="" id="label1" enabled="true" text="% = Wildcard" anchor_tl="0" anchor_br="0" dist_tl_x="384" dist_tl_y="28" dist_br_x="452" dist_br_y="48" geom="384,28,452,48"/>
-	<lineedit class="" id="id" enabled="false" text="" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="3" dist_br_x="146" dist_br_y="23" geom="35,3,146,23"/>
+	<lineedit class="" id="id" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="3" dist_br_x="146" dist_br_y="23" geom="35,3,146,23"/>
 	<label class="" id="label1" enabled="true" text="ID" anchor_tl="0" anchor_br="0" dist_tl_x="18" dist_tl_y="3" dist_br_x="30" dist_br_y="16" geom="18,3,30,16"/>
 	<lineedit class="" id="date_updated" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="324" dist_tl_y="3" dist_br_x="452" dist_br_y="23" geom="324,3,452,23"/>
 	<lineedit class="" id="date_added" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="172" dist_tl_y="3" dist_br_x="300" dist_br_y="23" geom="172,3,300,23"/>

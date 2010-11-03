@@ -10,7 +10,7 @@
 
 #include "MessageDialog.h"
 
-//#define ENABLE_CONSOLE
+#define ENABLE_CONSOLE
 
 // Choose the target renderer
 //#define USE_OPENGL_2
@@ -269,13 +269,25 @@ public:
     }
 
     // TODO full text search
-    std::vector<ShowItem> find_shows(const CL_String &title, int start=0, int limit=20)
+    std::vector<ShowItem> find_shows(const CL_String &title=CL_String(), int start=0, int limit=20)
     {
         std::vector<ShowItem> shows;
 
-        CL_DBCommand cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show where title like ?1 "
-                                               "order by title COLLATE NOCASE " 
-                                               "limit ?2, ?3", title.empty() ? "%" : title, start, limit);
+        CL_DBCommand cmd;
+
+        if(start == -1 && limit == -1)
+        {
+            cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show "
+                                       "order by title COLLATE NOCASE ");
+        }
+        else
+        {
+            cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show where title like ?1 "
+                                      "order by title COLLATE NOCASE " 
+                                      "limit ?2, ?3", title.empty() ? "%" : title, start, limit);
+        }
+
+    
         CL_DBReader reader = sql->execute_reader(cmd);
 
         while(reader.retrieve_row())
@@ -304,18 +316,23 @@ public:
 
         return shows;
     }
+
+    std::vector<ShowItem> find_all_shows()
+    {
+        return find_shows("", -1, -1);
+    }
 };
 
 
 
-class Page
+class AddPage
 {
     CL_TabPage *page;
     std::vector<GenreItemCheckbox> genreItems;
-    Database *database;
+    CL_SharedPtr<Database> database;
 
 public:
-    Page(CL_TabPage *page, Database *database) : page(page), database(database)
+    AddPage(CL_TabPage *page, const CL_SharedPtr<Database> &database) : page(page), database(database)
     {
         CL_LineEdit::get_named_item(page, "title");
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
@@ -333,6 +350,14 @@ public:
         CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
         CL_RadioButton &filmChoice = *CL_RadioButton::get_named_item(page, "filmChoice");
         CL_RadioButton &tvChoice = *CL_RadioButton::get_named_item(page, "tvChoice");
+
+        CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
+        CL_LineEdit &date_added = *CL_LineEdit::get_named_item(page, "date_added");
+        CL_LineEdit &date_updated = *CL_LineEdit::get_named_item(page, "date_updated");
+
+        id.set_read_only(true);
+        date_added.set_read_only(true);
+        date_updated.set_read_only(true);
 
         animeChoice.set_selected(true);
 
@@ -353,14 +378,14 @@ public:
 
         ratingLabel.set_text("5/10");
         rating.set_position(5);
-        rating.func_value_changed().set(this, &Page::on_rating_changed);
+        rating.func_value_changed().set(this, &AddPage::on_rating_changed);
 
-        addButton.func_clicked().set(this, &Page::on_submit_clicked);
-        clearButton.func_clicked().set(this, &Page::on_clear_clicked);
-        searchButton.func_clicked().set(this, &Page::on_search_clicked);
-        updateButton.func_clicked().set(this, &Page::on_update_clicked);
+        addButton.func_clicked().set(this, &AddPage::on_submit_clicked);
+        clearButton.func_clicked().set(this, &AddPage::on_clear_clicked);
+        searchButton.func_clicked().set(this, &AddPage::on_search_clicked);
+        updateButton.func_clicked().set(this, &AddPage::on_update_clicked);
 
-        std::vector<GenreItem> genres = database->get_all_genres();
+        std::vector<GenreItem> genres = this->database->get_all_genres();
         int xPos=10, yPos=15;
         for(std::vector<GenreItem>::const_iterator it = genres.begin(); it != genres.end(); ++it)
         {
@@ -688,12 +713,12 @@ private:
 
         CL_PopupMenu pop;
         pop.insert_item("Cancel");
-        pop.insert_item("Clear").func_clicked().set(this, &Page::on_clear_clicked);
+        pop.insert_item("Clear").func_clicked().set(this, &AddPage::on_clear_clicked);
         pop.insert_separator();
         for (std::vector<ShowItem>::iterator it = shows.begin(); it != shows.end(); ++it)
         {
             pop.insert_item(cl_format("%1 (%2) (season %3) (%4)", it->title, it->year, it->season, it->type), it->id)
-                .func_clicked().set(this, &Page::on_result_menu_click, *it);
+                .func_clicked().set(this, &AddPage::on_result_menu_click, *it);
         }
 
         
@@ -707,14 +732,14 @@ private:
         {
             search.start = cl_max(start-limit, 0); 
             search.limit = limit;
-            pop.insert_item(cl_format("...Previous %1", limit)).func_clicked().set(this, &Page::on_next_menu_click, search);
+            pop.insert_item(cl_format("...Previous %1", limit)).func_clicked().set(this, &AddPage::on_next_menu_click, search);
         }
 
         if(shows.empty() == false)
         {
             search.start = start+limit; 
             search.limit = limit;
-            pop.insert_item(cl_format("Next %1...", limit)).func_clicked().set(this, &Page::on_next_menu_click, search);
+            pop.insert_item(cl_format("Next %1...", limit)).func_clicked().set(this, &AddPage::on_next_menu_click, search);
         }
 
         pop.start(page, page->component_to_screen_coords(location));
@@ -731,19 +756,135 @@ private:
 
 };
 
+class ViewPage
+{
+    std::vector<ShowItem> shows;
+    CL_SharedPtr<Database> database;
+
+    CL_ListView *result;
+    CL_LineEdit *search;
+    CL_PushButton *previous, *next;
+    CL_LineEdit *pagenumber;
+
+    const unsigned int LIMIT;
+    unsigned int currentPage;
+    CL_String query;
+
+    void on_search_edit(CL_InputEvent &ev)
+    {
+        currentPage = 0;
+
+        CL_ListViewItem docItem = result->get_document_item();
+        query = cl_format("%%%1%%", CL_StringHelp::text_to_lower(search->get_text()));
+        find_shows();
+        populate_show_list();
+        
+    }
+
+    void update_current_page_number()
+    {
+        pagenumber->set_text(cl_format("%1", currentPage+1));
+    }
+
+    std::vector<ShowItem>::size_type find_shows()
+    {
+        shows = database->find_shows(query, currentPage*LIMIT, LIMIT);
+
+        return shows.size();
+    }
+
+    void populate_show_list()
+    {        
+        CL_ListViewItem docItem = result->get_document_item();
+
+        while(docItem.get_child_count() != LIMIT)
+        {
+            CL_ListViewItem item = result->create_item();
+            docItem.append_child(item);
+        }
+
+        CL_ListViewItem child = docItem.get_first_child();
+
+        CL_ListViewColumnHeader column = result->get_header()->get_column("title");        
+        CL_String columnName = column.get_column_id();
+        for (std::vector<ShowItem>::const_iterator it = shows.begin(); it != shows.end(); ++it)
+        {
+            child.set_column_text(columnName, it->title);
+            child = child.get_next_sibling();
+        }
+        while(child.is_null() == false)
+        {
+            child.set_column_text(columnName, "");
+            child = child.get_next_sibling();
+        }
+
+        column.set_caption(cl_format("title(%1)", shows.size()));
+        update_current_page_number();
+    }
+
+    void on_previous_clicked()
+    {
+        if(currentPage > 0) currentPage--; 
+        find_shows();
+        populate_show_list();
+    }
+
+    void on_next_clicked()
+    {
+        currentPage++;
+        if(find_shows() > 0)
+        {
+            populate_show_list();
+        }
+        else
+        {
+            currentPage--;
+        }
+    }
+
+public:
+    ViewPage(CL_TabPage *page, const CL_SharedPtr<Database> &db) 
+        : database(db), LIMIT(100), currentPage(0),
+          pagenumber(CL_LineEdit::get_named_item(page, "pagenumber")),
+          result(CL_ListView::get_named_item(page, "result")),
+          search(CL_LineEdit::get_named_item(page, "search")),
+          previous(CL_PushButton::get_named_item(page, "previous")),
+          next(CL_PushButton::get_named_item(page, "next"))
+    {
+        search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
+        previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
+        next->func_clicked().set(this, &ViewPage::on_next_clicked);
+
+        result->set_multi_select(false);
+        result->set_select_whole_row(true);
+
+        pagenumber->set_alignment(CL_LineEdit::align_center);
+        pagenumber->set_read_only(true);
+
+        CL_ListViewColumnHeader column = result->get_header()->create_column("title", "title");
+        result->get_header()->append(column);
+
+        find_shows();
+        populate_show_list();
+    }
+
+};
+
 class App
 {
     typedef const std::vector<CL_String>& Args;
 
     CL_Tab *tab;
-    std::map<CL_TabPage*, CL_SharedPtr<Page> > pages;
 
     CL_SlotContainer slots;
     bool close_clicked;
 
     CL_SharedPtr<Database> database;
 
-    
+
+    // pages
+    CL_AutoPtr<AddPage> addPage;
+    CL_AutoPtr<ViewPage> viewPage;
 
 private:
 
@@ -784,13 +925,14 @@ private:
 
         // add start page
         pageAdd->create_components("add.gui");
-        pages[pageAdd] = CL_SharedPtr<Page>(new Page(pageAdd, database));
-
-
-
+        addPage = new AddPage(pageAdd, database);
         // add end page
 
-        // view records
+        // find/view records
+        pageView->create_components("view.gui");
+        viewPage = new ViewPage(pageView, database);
+
+
         win.func_resized().set(this, &App::on_resize, &win);
     }
 
