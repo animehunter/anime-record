@@ -10,7 +10,7 @@
 
 #include "MessageDialog.h"
 
-#define ENABLE_CONSOLE
+//#define ENABLE_CONSOLE
 
 // Choose the target renderer
 //#define USE_OPENGL_2
