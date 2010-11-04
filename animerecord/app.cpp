@@ -114,9 +114,10 @@ public:
         sql = CL_SharedPtr<CL_DBConnection>(new CL_SqliteConnection(databaseFile));
     }
 
+    // return alphabetically sorted show genres
     std::vector<GenreItem> get_all_genres()
     {
-        CL_DBCommand cmd = sql->create_command("select id, name from genre");
+        CL_DBCommand cmd = sql->create_command("select id, name from genre order by name collate nocase");
         CL_DBReader reader = sql->execute_reader(cmd);
 
         std::vector<GenreItem> genres;
@@ -805,20 +806,43 @@ class ViewPage
 
         CL_ListViewItem child = docItem.get_first_child();
 
-        CL_ListViewColumnHeader column = result->get_header()->get_column("title");        
-        CL_String columnName = column.get_column_id();
+        CL_ListViewColumnHeader titleColumn = result->get_header()->get_column("title");
+        CL_ListViewColumnHeader ratingColumn = result->get_header()->get_column("rating");
+        CL_ListViewColumnHeader commentColumn = result->get_header()->get_column("comment");
+
+        CL_String titleColumnId = titleColumn.get_column_id();
+        CL_String ratingColumnId = ratingColumn.get_column_id();
+        CL_String commentColumnId = commentColumn.get_column_id();
+        
+        CL_String titleColumnName = cl_format("Title(%1)", shows.size());
+
+        CL_GUIThemePart listThemePart(result, "selection");
+        CL_Font font = listThemePart.get_font();
+        int padding = listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-right", "4")) + 
+                        listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-left", "3")) + 5;
+        
+        int maxWidth = font.get_text_size(result->get_gc(), titleColumnName).width + padding;
         for (std::vector<ShowItem>::const_iterator it = shows.begin(); it != shows.end(); ++it)
-        {
-            child.set_column_text(columnName, it->title);
+        {            
+            int textWidth = font.get_text_size(result->get_gc(), it->title).width + padding;
+            if(maxWidth < textWidth) maxWidth = textWidth;
+
+            child.set_column_text(titleColumnId, it->title);
+            child.set_column_text(ratingColumnId, cl_format("%1", it->rating));
+            child.set_column_text(commentColumnId, it->comment);
             child = child.get_next_sibling();
         }
+        if(maxWidth > 0) titleColumn.set_width(maxWidth);
+        
         while(child.is_null() == false)
         {
-            child.set_column_text(columnName, "");
+            child.set_column_text(titleColumnId, "");
+            child.set_column_text(ratingColumnId, "");
+            child.set_column_text(commentColumnId, "");
             child = child.get_next_sibling();
         }
 
-        column.set_caption(cl_format("title(%1)", shows.size()));
+        titleColumn.set_caption(titleColumnName);
         update_current_page_number();
     }
 
@@ -855,13 +879,26 @@ public:
         previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
         next->func_clicked().set(this, &ViewPage::on_next_clicked);
 
+        result->get_icon_list().clear();
         result->set_multi_select(false);
         result->set_select_whole_row(true);
 
         pagenumber->set_alignment(CL_LineEdit::align_center);
         pagenumber->set_read_only(true);
 
-        CL_ListViewColumnHeader column = result->get_header()->create_column("title", "title");
+        CL_ListViewColumnHeader column = result->get_header()->create_column("title", "Title");
+        result->get_header()->append(column);
+
+
+        CL_GUIThemePart listThemePart(result, "selection");
+        int padding = listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-right", "4")) + 
+            listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-left", "3")) + 5;
+
+        column = result->get_header()->create_column("rating", "Rating");
+        result->get_header()->append(column);
+        column.set_width(listThemePart.get_font().get_text_size(result->get_gc(), "Rating").width+padding);
+
+        column = result->get_header()->create_column("comment", "Comment");
         result->get_header()->append(column);
 
         find_shows();
