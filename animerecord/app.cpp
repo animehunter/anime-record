@@ -325,15 +325,63 @@ public:
 };
 
 
+class Page
+{
 
-class AddPage
+    int id;
+
+public:
+    Page(int id) : id(id)
+    {
+
+    }
+    virtual ~Page(){}
+
+    int get_id() const
+    {
+        return id;
+    }
+    virtual void fill_page(const void *data)
+    {
+
+    }
+};
+
+
+class TabManager
+{
+    CL_Tab *tab;
+
+    // pages
+    CL_AutoPtr<Page> addPage;
+    CL_AutoPtr<Page> viewPage;
+
+public:
+    TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &database);
+    ~TabManager(){}
+
+    CL_Tab *get_tab() const;
+
+    void load_show_item(const ShowItem &si)
+    {
+        addPage->fill_page(&si);
+    }
+
+    void display_show_item(const ShowItem &si)
+    {
+        load_show_item(si);
+        get_tab()->show_page(addPage->get_id());
+    }
+};
+
+class AddPage : public Page
 {
     CL_TabPage *page;
     std::vector<GenreItemCheckbox> genreItems;
     CL_SharedPtr<Database> database;
 
 public:
-    AddPage(CL_TabPage *page, const CL_SharedPtr<Database> &database) : page(page), database(database)
+    AddPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &database) : Page(page->get_id()), page(page), database(database)
     {
         CL_LineEdit::get_named_item(page, "title");
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
@@ -408,6 +456,14 @@ public:
             }
 
         }
+    }
+
+    virtual ~AddPage() {}
+
+    virtual void fill_page(const void *data)
+    {
+        const ShowItem *si = static_cast<const ShowItem*>(data);
+        fill_page(*si);
     }
 
 private:
@@ -488,6 +544,47 @@ private:
         CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
         animeChoice.set_selected(true);
         animeChoice.set_focus(true);
+    }
+
+    void fill_page(const ShowItem &show)
+    {
+        CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
+        CL_LineEdit &date_added = *CL_LineEdit::get_named_item(page, "date_added");
+        CL_LineEdit &date_updated = *CL_LineEdit::get_named_item(page, "date_updated");
+        CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
+        CL_Spin &year = *CL_Spin::get_named_item(page, "year");
+        CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
+        CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+        CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
+        CL_Spin &season = *CL_Spin::get_named_item(page, "season");
+
+        id.set_text(cl_format("%1", show.id));
+        id.request_repaint();
+        date_added.set_text(show.date_added.to_local().to_short_datetime_string());
+        date_added.request_repaint();
+        date_updated.set_text(show.date_updated.to_local().to_short_datetime_string());
+        date_updated.request_repaint();
+        title.set_text(show.title);
+        year.set_value(show.year);
+        rating.set_position(show.rating);
+        if(rating.func_value_changed().is_null() == false)
+            rating.func_value_changed().invoke();
+        comment.set_text(show.comment);
+        episodes.set_value(show.episodes);
+        season.set_value(show.season);
+        set_media_type(show.type);
+        clear_genre();
+
+        for (std::vector<GenreItemCheckbox>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
+        {
+            for(std::vector<GenreItem>::const_iterator it2 = show.genres.begin(); it2 != show.genres.end(); ++it2)
+            {
+                if(it2->id == it->id)
+                {
+                    it->box->set_checked(true);
+                }
+            }
+        }
     }
 
 
@@ -660,43 +757,7 @@ private:
 
     void on_result_menu_click(ShowItem show)
     {
-        CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
-        CL_LineEdit &date_added = *CL_LineEdit::get_named_item(page, "date_added");
-        CL_LineEdit &date_updated = *CL_LineEdit::get_named_item(page, "date_updated");
-        CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
-        CL_Spin &year = *CL_Spin::get_named_item(page, "year");
-        CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
-        CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
-        CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
-        CL_Spin &season = *CL_Spin::get_named_item(page, "season");
-
-        id.set_text(cl_format("%1", show.id));
-        id.request_repaint();
-        date_added.set_text(show.date_added.to_local().to_short_datetime_string());
-        date_added.request_repaint();
-        date_updated.set_text(show.date_updated.to_local().to_short_datetime_string());
-        date_updated.request_repaint();
-        title.set_text(show.title);
-        year.set_value(show.year);
-        rating.set_position(show.rating);
-        if(rating.func_value_changed().is_null() == false)
-            rating.func_value_changed().invoke();
-        comment.set_text(show.comment);
-        episodes.set_value(show.episodes);
-        season.set_value(show.season);
-        set_media_type(show.type);
-        clear_genre();
-
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
-        {
-            for(std::vector<GenreItem>::const_iterator it2 = show.genres.begin(); it2 != show.genres.end(); ++it2)
-            {
-                if(it2->id == it->id)
-                {
-                    it->box->set_checked(true);
-                }
-            }
-        }
+        fill_page(show);
     }
 
     void on_next_menu_click(SearchQuery search)
@@ -757,17 +818,18 @@ private:
 
 };
 
-class ViewPage
+class ViewPage : public Page
 {
     std::vector<ShowItem> shows;
     CL_SharedPtr<Database> database;
+    TabManager *tabMan;
 
     CL_ListView *result;
     CL_LineEdit *search;
-    CL_PushButton *previous, *next;
+    CL_PushButton *previous, *next, *edit;
     CL_LineEdit *pagenumber;
 
-    const unsigned int LIMIT;
+    enum { LIMIT=100 };
     unsigned int currentPage;
     CL_String query;
 
@@ -827,6 +889,10 @@ class ViewPage
             int textWidth = font.get_text_size(result->get_gc(), it->title).width + padding;
             if(maxWidth < textWidth) maxWidth = textWidth;
 
+            ShowItem *showItemCopy = new ShowItem;
+            *showItemCopy = *it;
+
+            child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
             child.set_column_text(titleColumnId, it->title);
             child.set_column_text(ratingColumnId, cl_format("%1", it->rating));
             child.set_column_text(commentColumnId, it->comment);
@@ -836,6 +902,7 @@ class ViewPage
         
         while(child.is_null() == false)
         {
+            child.set_userdata(CL_UnknownSharedPtr());
             child.set_column_text(titleColumnId, "");
             child.set_column_text(ratingColumnId, "");
             child.set_column_text(commentColumnId, "");
@@ -866,18 +933,32 @@ class ViewPage
         }
     }
 
+    void on_edit_clicked()
+    {
+        if(result->get_selected_item().is_null() == false)
+        {
+            CL_SharedPtr<ShowItem> show = result->get_selected_item().get_userdata();
+            if(show.is_null() == false)
+            {
+                tabMan->display_show_item(*show);
+            }   
+        }
+    }
+
 public:
-    ViewPage(CL_TabPage *page, const CL_SharedPtr<Database> &db) 
-        : database(db), LIMIT(100), currentPage(0),
+    ViewPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &db)
+        : Page(page->get_id()), tabMan(tabMan), database(db), currentPage(0),
           pagenumber(CL_LineEdit::get_named_item(page, "pagenumber")),
           result(CL_ListView::get_named_item(page, "result")),
           search(CL_LineEdit::get_named_item(page, "search")),
           previous(CL_PushButton::get_named_item(page, "previous")),
-          next(CL_PushButton::get_named_item(page, "next"))
+          next(CL_PushButton::get_named_item(page, "next")),
+          edit(CL_PushButton::get_named_item(page, "edit"))
     {
         search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
         previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
         next->func_clicked().set(this, &ViewPage::on_next_clicked);
+        edit->func_clicked().set(this, &ViewPage::on_edit_clicked);
 
         result->get_icon_list().clear();
         result->set_multi_select(false);
@@ -904,24 +985,46 @@ public:
         find_shows();
         populate_show_list();
     }
+    virtual ~ViewPage(){}
 
 };
+
+TabManager::TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &database) 
+    : tab(new CL_Tab(parent))
+{
+    CL_GUILayoutCorners layout;
+
+    CL_TabPage *pageAdd = tab->add_page("Add Show", 0);
+    pageAdd->set_layout(layout);
+    CL_TabPage *pageView = tab->add_page("View Records",1);
+    pageView->set_layout(layout);
+
+    // add start page
+    pageAdd->create_components("add.gui");
+    addPage = new AddPage(pageAdd, this, database);
+    // add end page
+
+    // find/view records
+    pageView->create_components("view.gui");
+    viewPage = new ViewPage(pageView, this, database);
+
+}
+
+CL_Tab *TabManager::get_tab() const 
+{
+    return tab;
+}
 
 class App
 {
     typedef const std::vector<CL_String>& Args;
 
-    CL_Tab *tab;
+    CL_AutoPtr<TabManager> tabMan;
 
     CL_SlotContainer slots;
     bool close_clicked;
 
     CL_SharedPtr<Database> database;
-
-
-    // pages
-    CL_AutoPtr<AddPage> addPage;
-    CL_AutoPtr<ViewPage> viewPage;
 
 private:
 
@@ -946,30 +1049,14 @@ private:
 
     void on_resize(CL_Window *win)
     {
-        tab->set_geometry(CL_Rect(0,0,win->get_size()));
+        tabMan->get_tab()->set_geometry(CL_Rect(0,0,win->get_size()));
     }
 
   
     void setup_window(CL_Window &win)
-    {
-        CL_GUILayoutCorners layout;
-        tab = new CL_Tab(&win);
-        
-        CL_TabPage *pageAdd = tab->add_page("Add Show", 0);
-        pageAdd->set_layout(layout);
-        CL_TabPage *pageView = tab->add_page("View Records",1);
-        pageView->set_layout(layout);
-
-        // add start page
-        pageAdd->create_components("add.gui");
-        addPage = new AddPage(pageAdd, database);
-        // add end page
-
-        // find/view records
-        pageView->create_components("view.gui");
-        viewPage = new ViewPage(pageView, database);
-
-
+    {        
+        tabMan = new TabManager(&win, database);
+                
         win.func_resized().set(this, &App::on_resize, &win);
     }
 
@@ -988,8 +1075,7 @@ private:
         setup_window(win);
         win.set_visible();
 
-        guiMan.exec();
-        return 0;
+        return guiMan.exec();
     }
 
 public:
