@@ -13,12 +13,18 @@ CREATE TABLE [show] (
 [season] INTEGER DEFAULT '1' NOT NULL,
 [episodes] INTEGER DEFAULT '0' NOT NULL,
 [rating] REAL DEFAULT '5' NOT NULL,
-[comment] NVARCHAR(5000)  NOT NULL
+[comment] NVARCHAR(5000)  NOT NULL,
+[status] INTEGER DEFAULT '0' NOT NULL
 );
 
 CREATE TABLE [show_genre] (
 [show_id] INTEGER  NOT NULL,
 [genre_id] INTEGER  NOT NULL
+);
+
+CREATE TABLE [status] (
+[id] INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
+[name] VARCHAR(100)  UNIQUE NOT NULL
 );
 
 CREATE INDEX [show_genre_index] ON [show_genre](
