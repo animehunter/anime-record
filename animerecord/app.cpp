@@ -31,7 +31,10 @@
 #include <ClanLib/gl.h>
 #endif
 
+enum VIEWING_STATUS { UNKNOWN=0, WATCHING=1, COMPLETED=2, ONHOLD=3, DROPPED=4, PLANNING=6 };
+enum VIEWING_STATUS_MASK { UNKNOWN_MASK=0, WATCHING_MASK=(1<<1), COMPLETED_MASK=(1<<2), ONHOLD_MASK=(1<<3), DROPPED_MASK=(1<<4), PLANNING_MASK=(1<<6) };
 
+static const int ALL_VIEWING_STATUS_MASK = UNKNOWN_MASK|WATCHING_MASK|COMPLETED_MASK|ONHOLD_MASK|DROPPED_MASK|PLANNING_MASK;
 
 template<class StrType>
 StrType trimmed( StrType const& str, char const* sepSet=" \n\r\t")
@@ -58,6 +61,25 @@ StrType clean (const StrType &oldStr, const StrType &bad)
     return str;
 }
 
+template <typename T, typename Iterator>
+T join(
+    Iterator b,
+    Iterator e,
+    const T sep)
+{
+    T t;
+
+    while (b != e)
+    {
+        if(b != e-1)
+            t = t + *b++ + sep;
+        else
+            t = t + *b++;
+    }
+
+    return t;
+}
+
 struct SearchQuery
 {
     CL_String name;
@@ -72,6 +94,12 @@ struct GenreItemCheckbox
 };
 
 struct GenreItem
+{
+    int id;
+    CL_String name;
+};
+
+struct StatusItem
 {
     int id;
     CL_String name;
@@ -92,6 +120,8 @@ struct ShowItem
     std::vector<GenreItem> genres;
     double rating;
     CL_String comment;
+
+    int status;
 };
 
 
@@ -424,8 +454,25 @@ public:
         return genres;
     }
 
+    std::vector<StatusItem> get_all_status()
+    {
+        CL_DBCommand cmd = sql->create_command("select id, name from status order by id asc");
+        CL_DBReader reader = sql->execute_reader(cmd);
+
+        std::vector<StatusItem> statuses;
+        while(reader.retrieve_row())
+        {
+            StatusItem item;
+            item.id = reader.get_column_value("id");
+            item.name = reader.get_column_value("name");
+            statuses.push_back(item);
+        }
+
+        return statuses;
+    }
+
     // returns the inserted show id
-    int add_show_to_db(const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, int year, int rating, const CL_String &comment, int episodes, int season)
+    int add_show(const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, int year, int rating, const CL_String &comment, int episodes, int season, int status)
     {
         CL_String title_s = strip_sql_symbol(title);
         CL_String type_s = strip_sql_symbol(type);
@@ -436,8 +483,8 @@ public:
 
         CL_DBTransaction transaction = sql->begin_transaction();
 
-        CL_DBCommand cmd = sql->create_command("insert into show (title, type, year, rating, comment, episodes, season) values (?1,?2,?3,?4,?5,?6,?7)",
-            title_s, type_s, year, rating, comment_s, episodes, season);
+        CL_DBCommand cmd = sql->create_command("insert into show (title, type, year, rating, comment, episodes, season) values (?1,?2,?3,?4,?5,?6,?7,?8)",
+                                                title_s, type_s, year, rating, comment_s, episodes, season, status);
         sql->execute_non_query(cmd);
 
         int showid = cmd.get_output_last_insert_rowid();
@@ -456,7 +503,8 @@ public:
         return showid;
     }
 
-    void update_show(int showid, const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, int year, int rating, const CL_String &comment, int episodes, int season)
+    void update_show(int showid, const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, 
+                     int year, int rating, const CL_String &comment, int episodes, int season, int status)
     {
         CL_String title_s = strip_sql_symbol(title);
         CL_String type_s = strip_sql_symbol(type);
@@ -467,8 +515,8 @@ public:
 
         CL_DBTransaction transaction = sql->begin_transaction();
 
-        CL_DBCommand cmd = sql->create_command("update show set title=?2, type=?3, year=?4, rating=?5, comment=?6, episodes=?7, season=?8 where id=?1",
-                                               showid, title_s, type_s, year, rating, comment_s, episodes, season);
+        CL_DBCommand cmd = sql->create_command("update show set title=?2, type=?3, year=?4, rating=?5, comment=?6, episodes=?7, season=?8, status=?9 where id=?1",
+                                               showid, title_s, type_s, year, rating, comment_s, episodes, season, status);
         sql->execute_non_query(cmd);
 
         cmd = sql->create_command("delete from show_genre where show_id=?1", showid);
@@ -533,51 +581,90 @@ public:
         return genres;
     }
 
+    ShowItem read_show(CL_DBReader &reader)
+    {
+        ShowItem show;
+
+        show.id = reader.get_column_value("id");
+        show.date_added = reader.get_column_value("date_added");
+        show.date_updated = reader.get_column_value("date_updated");
+        show.title = reader.get_column_value("title");
+        show.type = reader.get_column_value("type");
+        show.year = reader.get_column_value("year");
+        show.episodes = reader.get_column_value("episodes");
+        show.season = reader.get_column_value("season");
+        show.rating = reader.get_column_value("rating");
+        show.comment = reader.get_column_value("comment");
+        show.status = reader.get_column_value("status");
+
+        return show;
+    }
+
     ShowItem find_show(int id)
     {
         ShowItem show;
 
-        CL_DBCommand cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show where id = ?1", id);
+        CL_DBCommand cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment, status " 
+                                               "from show where id = ?1", id);
         CL_DBReader reader = sql->execute_reader(cmd);
 
         if(reader.retrieve_row())
         {
-            show.id = reader.get_column_value("id");
-            show.date_added = reader.get_column_value("date_added");
-            show.date_updated = reader.get_column_value("date_updated");
-            show.title = reader.get_column_value("title");
-            show.type = reader.get_column_value("type");
-            show.year = reader.get_column_value("year");
-            show.episodes = reader.get_column_value("episodes");
-            show.season = reader.get_column_value("season");
-            show.rating = reader.get_column_value("rating");
-            show.comment = reader.get_column_value("comment");
-
+            show = read_show(reader);
             reader.close();
 
-            show.genres = find_show_genres(id);
+            show.genres = find_show_genres(show.id);     
         }
 
         return show;
     }
 
     // TODO full text search
-    std::vector<ShowItem> find_shows(const CL_String &title=CL_String(), int start=0, int limit=20)
+    std::vector<ShowItem> find_shows(const CL_String &title, int statusmask, 
+                                     int start, int limit)
     {
         std::vector<ShowItem> shows;
 
         CL_DBCommand cmd;
 
+        std::vector<CL_String> where_preds;
+
+        CL_String status_line;
+
+        if(statusmask > 0)
+        {
+            status_line = " status in (";
+
+            int i = 1;
+            std::vector<CL_String> statuses;
+            while(statusmask > 0)
+            {
+                int s = (statusmask >> i) & 1;
+
+                if(s)
+                {
+                    statuses.push_back(CL_StringHelp::int_to_text(i));
+                }
+                statusmask &= ~(1 << i);
+                i++;
+            }
+            status_line += join(statuses.begin(), statuses.end(), CL_String(",")) + ") ";
+            where_preds.push_back(status_line);
+        }
+
         if(start == -1 && limit == -1)
         {
-            cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show "
-                                       "order by title COLLATE NOCASE ");
+            cmd = sql->create_command(CL_String("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment, status from show ") +
+                                      (status_line.empty() ? CL_String() : CL_String(" where ") + status_line) +
+                                      CL_String("order by title COLLATE NOCASE ") );
         }
         else
         {
-            cmd = sql->create_command("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment from show where title like ?1 "
-                                      "order by title COLLATE NOCASE " 
-                                      "limit ?2, ?3", title.empty() ? "%" : title, start, limit);
+            cmd = sql->create_command(CL_String("select id, date_added, date_updated, title, type, year, episodes, season, rating, comment, status from show  ") +
+                                      CL_String("where title like ?1 ") + (status_line.empty() ? CL_String() : CL_String(" and ") + status_line) +
+                                      CL_String("order by title COLLATE NOCASE " 
+                                                "limit ?2, ?3 "),
+                                                title.empty() ? "%" : title, start, limit);
         }
 
     
@@ -585,20 +672,7 @@ public:
 
         while(reader.retrieve_row())
         {
-            ShowItem item;
-
-            item.id = reader.get_column_value("id");
-            item.date_added = reader.get_column_value("date_added");
-            item.date_updated = reader.get_column_value("date_updated");
-            item.title = reader.get_column_value("title");
-            item.type = reader.get_column_value("type");
-            item.year = reader.get_column_value("year");
-            item.episodes = reader.get_column_value("episodes");
-            item.season = reader.get_column_value("season");
-            item.rating = reader.get_column_value("rating");
-            item.comment = reader.get_column_value("comment");
-
-            shows.push_back(item);           
+            shows.push_back(read_show(reader));           
         }
         reader.close();
 
@@ -612,7 +686,7 @@ public:
 
     std::vector<ShowItem> find_all_shows()
     {
-        return find_shows("", -1, -1);
+        return find_shows("", ALL_VIEWING_STATUS_MASK, -1, -1);
     }
 };
 
@@ -680,6 +754,8 @@ class SearchPage : public Page
 
     int currentPage;
 
+    enum { LIMIT = 100 };
+
     void on_search_enter_pressed()
     {
         MyAnimeListClient client;
@@ -688,7 +764,7 @@ class SearchPage : public Page
 
         CL_ListViewItem docItem = result->get_document_item();
 
-        while(docItem.get_child_count() != 100)
+        while(docItem.get_child_count() != LIMIT)
         {
             CL_ListViewItem item = result->create_item();
             docItem.append_child(item);
@@ -793,6 +869,9 @@ class AddPage : public Page
     std::vector<GenreItemCheckbox> genreItems;
     CL_SharedPtr<Database> database;
 
+    CL_PopupMenu genrePopMenu;
+    CL_PopupMenu statusPopMenu;
+
 public:
     AddPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &database) : Page(page->get_id()), page(page), database(database)
     {
@@ -809,19 +888,24 @@ public:
         CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
         CL_Spin &season = *CL_Spin::get_named_item(page, "season");
 
-        CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
-        CL_RadioButton &filmChoice = *CL_RadioButton::get_named_item(page, "filmChoice");
-        CL_RadioButton &tvChoice = *CL_RadioButton::get_named_item(page, "tvChoice");
+        CL_ComboBox &mediatype = *CL_ComboBox::get_named_item(page, "mediatype");
+        CL_ComboBox &status = *CL_ComboBox::get_named_item(page, "status");
 
         CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
         CL_LineEdit &date_added = *CL_LineEdit::get_named_item(page, "date_added");
         CL_LineEdit &date_updated = *CL_LineEdit::get_named_item(page, "date_updated");
 
+        genrePopMenu.insert_item("Anime");
+        genrePopMenu.insert_item("Film");
+        genrePopMenu.insert_item("TV");
+        mediatype.set_popup_menu(genrePopMenu);
+        mediatype.set_selected_item(0);
+        mediatype.set_editable(false);
+        mediatype.set_focus_policy(CL_GUIComponent::focus_refuse);
+                       
         id.set_read_only(true);
         date_added.set_read_only(true);
         date_updated.set_read_only(true);
-
-        animeChoice.set_selected(true);
 
         year.set_floating_point_mode(false);
         year.set_ranges(1800,3000);
@@ -869,6 +953,18 @@ public:
             }
 
         }
+
+        std::vector<StatusItem> statuses = this->database->get_all_status();
+
+        for(std::vector<StatusItem>::const_iterator it = statuses.begin(); it != statuses.end(); ++it)
+        {
+            statusPopMenu.insert_item(it->name, it->id);
+        }
+
+        status.set_popup_menu(statusPopMenu);
+        status.set_editable(false);
+        status.set_selected_item(0);
+        status.set_focus_policy(CL_GUIComponent::focus_refuse);
     }
 
     virtual ~AddPage() {}
@@ -914,49 +1010,58 @@ private:
 
     CL_String get_media_type() const
     {
-        CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
-        CL_RadioButton &filmChoice = *CL_RadioButton::get_named_item(page, "filmChoice");
-        CL_RadioButton &tvChoice = *CL_RadioButton::get_named_item(page, "tvChoice");
+        CL_ComboBox &mediatype = *CL_ComboBox::get_named_item(page, "mediatype");
 
-        if(animeChoice.is_selected())
-            return "Anime";
-        else if(filmChoice.is_selected())
-            return "Film";
-        else if(tvChoice.is_selected())
-            return "TV";
+        return mediatype.get_text();
+    }
 
-        return "";
+    int get_status() const
+    {
+        CL_ComboBox &status = *CL_ComboBox::get_named_item(page, "status");
+
+        return status.get_selected_item();
     }
 
     void set_media_type(const CL_String &type) const
     {
-        CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
-        CL_RadioButton &filmChoice = *CL_RadioButton::get_named_item(page, "filmChoice");
-        CL_RadioButton &tvChoice = *CL_RadioButton::get_named_item(page, "tvChoice");
+        CL_ComboBox &mediatype = *CL_ComboBox::get_named_item(page, "mediatype");
 
         if(type == "Anime")
         {
-            animeChoice.set_selected(true);          
-            animeChoice.set_focus(true);
+            mediatype.set_text(type);
         }
         else if(type == "Film")
         {
-            filmChoice.set_selected(true);
-            filmChoice.set_focus(true);
+            mediatype.set_text(type);
         }
         else if(type == "TV")
         {
-            tvChoice.set_selected(true);
-            tvChoice.set_focus(true);
+            mediatype.set_text(type);
         }
         else reset_media_type();
     }
 
     void reset_media_type() const
     {
-        CL_RadioButton &animeChoice = *CL_RadioButton::get_named_item(page, "animeChoice");
-        animeChoice.set_selected(true);
-        animeChoice.set_focus(true);
+        CL_ComboBox &mediatype = *CL_ComboBox::get_named_item(page, "mediatype");
+        mediatype.set_selected_item(0);
+    }
+
+    void reset_status() const
+    {
+        CL_ComboBox &status = *CL_ComboBox::get_named_item(page, "status");
+        status.set_selected_item(0);
+    }
+
+    void set_status(int statusCode)
+    {
+        CL_ComboBox &status = *CL_ComboBox::get_named_item(page, "status");
+        CL_PopupMenuItem item = statusPopMenu.get_item(statusCode);
+
+        if(item.is_null() == false)
+            status.set_selected_item(statusCode);
+        else
+            status.set_selected_item(0);
     }
 
     void fill_page(const ShowItem &show)
@@ -985,6 +1090,7 @@ private:
         comment.set_text(show.comment);
         episodes.set_value(show.episodes);
         season.set_value(show.season);
+        set_status(show.status);
         set_media_type(show.type);
         clear_genre();
 
@@ -1047,8 +1153,8 @@ private:
                     {
                         CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
 
-                        int showid = database->add_show_to_db(trimmedTitle, get_media_type(), get_selected_genres(), year.get_value(), 
-                                                 rating.get_position(), comment.get_text(), episodes.get_value(), season.get_value());
+                        int showid = database->add_show(trimmedTitle, get_media_type(), get_selected_genres(), year.get_value(), 
+                                                        rating.get_position(), comment.get_text(), episodes.get_value(), season.get_value(), get_status());
                         ShowItem show = database->find_show(showid);
                         title.set_text(show.title);
                         id.set_text(cl_format("%1", show.id));
@@ -1119,7 +1225,7 @@ private:
                     else
                     {
                         database->update_show(id.get_text_int(), trimmedTitle, get_media_type(), get_selected_genres(), year.get_value(), 
-                            rating.get_position(), comment.get_text(), episodes.get_value(), season.get_value());
+                                              rating.get_position(), comment.get_text(), episodes.get_value(), season.get_value(), get_status());
                         ShowItem show = database->find_show(id.get_text_int());
                         title.set_text(show.title);
                         id.set_text(cl_format("%1", show.id));
@@ -1165,6 +1271,7 @@ private:
         episodes.set_value(0);
         season.set_value(0);
 
+        reset_status();
         reset_media_type();
         clear_genre();
     }
@@ -1185,7 +1292,7 @@ private:
     void display_search_result(const CL_String &title, int start, int limit, const CL_Point &location)
     {
         CL_String trimmedTitle = trimmed(title);
-        std::vector<ShowItem> shows = database->find_shows(trimmedTitle, start, limit);
+        std::vector<ShowItem> shows = database->find_shows(trimmedTitle, ALL_VIEWING_STATUS_MASK, start, limit);
 
         CL_PopupMenu pop;
         pop.insert_item("Cancel");
@@ -1242,12 +1349,20 @@ class ViewPage : public Page
     CL_LineEdit *search;
     CL_PushButton *previous, *next, *edit;
     CL_LineEdit *pagenumber;
+    CL_CheckBox *watching, *completed, *planning, *dropped;
 
     enum { LIMIT=100 };
     unsigned int currentPage;
     CL_String query;
 
+    int viewing_status_mask;
+
     void on_search_edit(CL_InputEvent &ev)
+    {
+        refresh_list();
+    }
+
+    void refresh_list() 
     {
         currentPage = 0;
 
@@ -1255,9 +1370,7 @@ class ViewPage : public Page
         query = cl_format("%%%1%%", CL_StringHelp::text_to_lower(search->get_text()));
         find_shows();
         populate_show_list();
-        
     }
-
     void update_current_page_number()
     {
         pagenumber->set_text(cl_format("%1", currentPage+1));
@@ -1265,7 +1378,7 @@ class ViewPage : public Page
 
     std::vector<ShowItem>::size_type find_shows()
     {
-        shows = database->find_shows(query, currentPage*LIMIT, LIMIT);
+        shows = database->find_shows(query, viewing_status_mask, currentPage*LIMIT, LIMIT);
 
         return shows.size();
     }
@@ -1359,20 +1472,46 @@ class ViewPage : public Page
         }
     }
 
+    void on_viewing_status_checked(VIEWING_STATUS status)
+    {
+        viewing_status_mask |= (1 << status);
+        refresh_list();
+    }
+
+    void on_viewing_status_unchecked(VIEWING_STATUS status)
+    {
+        viewing_status_mask &= ~(1 << status);
+        refresh_list();
+    }
+
 public:
     ViewPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &db)
-        : Page(page->get_id()), tabMan(tabMan), database(db), currentPage(0),
+        : Page(page->get_id()), tabMan(tabMan), database(db), currentPage(0), viewing_status_mask(0),
           pagenumber(CL_LineEdit::get_named_item(page, "pagenumber")),
           result(CL_ListView::get_named_item(page, "result")),
           search(CL_LineEdit::get_named_item(page, "search")),
           previous(CL_PushButton::get_named_item(page, "previous")),
           next(CL_PushButton::get_named_item(page, "next")),
-          edit(CL_PushButton::get_named_item(page, "edit"))
+          edit(CL_PushButton::get_named_item(page, "edit")),
+          watching(CL_CheckBox::get_named_item(page, "watching")), 
+          completed(CL_CheckBox::get_named_item(page, "completed")), 
+          planning(CL_CheckBox::get_named_item(page, "planning")), 
+          dropped(CL_CheckBox::get_named_item(page, "dropped"))
     {        
         search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
         previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
         next->func_clicked().set(this, &ViewPage::on_next_clicked);
         edit->func_clicked().set(this, &ViewPage::on_edit_clicked);
+
+        watching->func_checked().set(this, &ViewPage::on_viewing_status_checked, WATCHING);
+        completed->func_checked().set(this, &ViewPage::on_viewing_status_checked, COMPLETED);
+        planning->func_checked().set(this, &ViewPage::on_viewing_status_checked, PLANNING);
+        dropped->func_checked().set(this, &ViewPage::on_viewing_status_checked, DROPPED);
+
+        watching->func_unchecked().set(this, &ViewPage::on_viewing_status_unchecked, WATCHING);
+        completed->func_unchecked().set(this, &ViewPage::on_viewing_status_unchecked, COMPLETED);
+        planning->func_unchecked().set(this, &ViewPage::on_viewing_status_unchecked, PLANNING);
+        dropped->func_unchecked().set(this, &ViewPage::on_viewing_status_unchecked, DROPPED);
 
         result->get_icon_list().clear();
         result->set_multi_select(false);

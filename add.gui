@@ -1,10 +1,6 @@
 <gui xmlns="http://clanlib.org/xmlns/gui-1.0">
 	<label class="" id="label1" enabled="true" text="Title" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="28" dist_br_x="40" dist_br_y="48" geom="11,28,40,48"/>
 	<lineedit class="" id="title" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="28" dist_br_x="326" dist_br_y="48" geom="35,28,326,48"/>
-	<frame class="" id="frame2" enabled="true" text="Type" anchor_tl="0" anchor_br="0" dist_tl_x="457" dist_tl_y="12" dist_br_x="549" dist_br_y="95" geom="457,12,549,95"/>
-	<radiobutton class="" id="animeChoice" enabled="true" text="Anime" group="type" anchor_tl="0" anchor_br="0" dist_tl_x="467" dist_tl_y="28" dist_br_x="542" dist_br_y="45" geom="467,28,542,45"/>
-	<radiobutton class="" id="filmChoice" enabled="true" text="Film" group="type" anchor_tl="0" anchor_br="0" dist_tl_x="467" dist_tl_y="50" dist_br_x="542" dist_br_y="67" geom="467,50,542,67"/>
-	<radiobutton class="" id="tvChoice" enabled="true" text="TV Show" group="type" anchor_tl="0" anchor_br="0" dist_tl_x="467" dist_tl_y="72" dist_br_x="542" dist_br_y="89" geom="467,72,542,89"/>
 	<label class="" id="label3" enabled="true" text="Year" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="60" dist_br_x="40" dist_br_y="77" geom="11,60,40,77"/>
 	<frame class="" id="genreFrame" enabled="true" text="Genre" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="100" dist_br_x="549" dist_br_y="293" geom="11,100,549,293"/>
 	<label class="" id="label4" enabled="true" text="Comment" anchor_tl="0" anchor_br="0" dist_tl_x="245" dist_tl_y="335" dist_br_x="291" dist_br_y="348" geom="245,335,291,348"/>
@@ -28,5 +24,7 @@
 	<lineedit class="" id="date_added" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="172" dist_tl_y="3" dist_br_x="300" dist_br_y="23" geom="172,3,300,23"/>
 	<label class="" id="label2" enabled="true" text="A" anchor_tl="0" anchor_br="0" dist_tl_x="158" dist_tl_y="3" dist_br_x="166" dist_br_y="16" geom="158,3,166,16"/>
 	<label class="" id="label3" enabled="true" text="U" anchor_tl="0" anchor_br="0" dist_tl_x="310" dist_tl_y="3" dist_br_x="318" dist_br_y="16" geom="310,3,318,16"/>
+	<combobox class="" id="mediatype" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="457" dist_tl_y="3" dist_br_x="549" dist_br_y="23" geom="457,3,549,23"/>
+	<combobox class="" id="status" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="457" dist_tl_y="28" dist_br_x="549" dist_br_y="48" geom="457,28,549,48"/>
 	<dialog width="559" height="416"/>
 </gui>

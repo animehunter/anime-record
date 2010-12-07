@@ -2,10 +2,14 @@
 	<listview class="" id="result" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="39" dist_br_x="771" dist_br_y="541" geom="11,39,771,541">
 		<listview_header/>
 	</listview>
-	<lineedit class="" id="search" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="11" dist_br_x="771" dist_br_y="34" geom="11,11,771,34"/>
+	<lineedit class="" id="search" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="11" dist_br_x="496" dist_br_y="34" geom="11,11,496,34"/>
 	<button class="" id="next" enabled="true" text="-&gt;" anchor_tl="0" anchor_br="0" dist_tl_x="427" dist_tl_y="546" dist_br_x="455" dist_br_y="566" geom="427,546,455,566"/>
 	<button class="" id="previous" enabled="true" text="&lt;-" anchor_tl="0" anchor_br="0" dist_tl_x="336" dist_tl_y="546" dist_br_x="364" dist_br_y="566" geom="336,546,364,566"/>
 	<lineedit class="" id="pagenumber" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="369" dist_tl_y="546" dist_br_x="422" dist_br_y="566" geom="369,546,422,566"/>
 	<button class="" id="edit" enabled="true" text="Edit" anchor_tl="0" anchor_br="0" dist_tl_x="287" dist_tl_y="546" dist_br_x="331" dist_br_y="566" geom="287,546,331,566"/>
+	<checkbox class="" id="watching" enabled="true" text="Watching" anchor_tl="0" anchor_br="0" dist_tl_x="501" dist_tl_y="17" dist_br_x="564" dist_br_y="34" geom="501,17,564,34"/>
+	<checkbox class="" id="completed" enabled="true" text="Completed" anchor_tl="0" anchor_br="0" dist_tl_x="569" dist_tl_y="17" dist_br_x="639" dist_br_y="34" geom="569,17,639,34"/>
+	<checkbox class="" id="planning" enabled="true" text="Planning" anchor_tl="0" anchor_br="0" dist_tl_x="644" dist_tl_y="17" dist_br_x="705" dist_br_y="34" geom="644,17,705,34"/>
+	<checkbox class="" id="dropped" enabled="true" text="Dropped" anchor_tl="0" anchor_br="0" dist_tl_x="707" dist_tl_y="17" dist_br_x="765" dist_br_y="34" geom="707,17,765,34"/>
 	<dialog width="782" height="580"/>
 </gui>
