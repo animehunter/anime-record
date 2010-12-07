@@ -4,7 +4,9 @@
 #include <ClanLib/gui.h>
 #include <ClanLib/database.h>
 #include <ClanLib/sqlite.h>
+#include <ClanLib/network.h>
 #include <algorithm>
+#include <numeric>
 #include <map>
 #include <iterator>
 
@@ -28,6 +30,7 @@
 #ifdef USE_OPENGL_2
 #include <ClanLib/gl.h>
 #endif
+
 
 
 template<class StrType>
@@ -87,8 +90,297 @@ struct ShowItem
     int episodes;
     int season;
     std::vector<GenreItem> genres;
-    int rating;
+    double rating;
     CL_String comment;
+};
+
+
+typedef std::map<CL_String, CL_String> HTTPHeaderFields;
+
+class HTTPHeader
+{
+private:
+    HTTPHeaderFields fields;
+
+public:
+    HTTPHeader()
+    {
+        fields["Connection"] = "close";
+        fields["Accept"] = "text/plain, text/html";
+        fields["User-Agent"] = "AnimeRecord/1.0";
+    }
+
+    CL_String &operator[](const CL_String &field)
+    {
+        return fields[field];
+    }
+
+    CL_String operator[](const CL_String &field) const
+    {
+        HTTPHeaderFields::const_iterator i = fields.find(field);
+        if(i != fields.end())
+            return i->second;
+        else 
+            return "";
+    }
+
+    HTTPHeaderFields::iterator begin()
+    {
+        return fields.begin();
+    }
+    HTTPHeaderFields::iterator end()
+    {
+        return fields.end();
+    }
+
+    HTTPHeaderFields::const_iterator begin() const
+    {
+        return fields.begin();
+    }
+    HTTPHeaderFields::const_iterator end() const
+    {
+        return fields.end();
+    }
+};
+
+class HTTPClient
+{
+
+    CL_String host;
+    CL_String port;
+    CL_String auth_string;
+    CL_TCPConnection connection;
+
+private:
+    CL_String header_to_string(const HTTPHeader &header) const
+    {
+        struct JoinHTTPFields
+        {
+            CL_String operator()(const CL_String &acc, const std::pair<CL_String, CL_String> &field) const
+            {
+                return cl_format("%1%2: %3\r\n", acc, field.first, field.second);
+            }
+        };
+        return std::accumulate(header.begin(), header.end(), CL_String(), JoinHTTPFields()) + "\r\n";
+    }
+
+    CL_String encode_http_auth(const CL_String&user, const CL_String &pass) const
+    {
+        if(user.empty() && pass.empty())
+        {
+            return CL_String();
+        }
+
+        CL_String auth = CL_Base64Encoder::encode(cl_format("%1:%2", user, pass));
+        return cl_format("Basic %1", auth);
+    }
+
+    CL_String url_encode(const CL_String &url)
+    {
+        static std::map<char, CL_String> encode_map;
+
+        if(encode_map.empty())
+        {
+            encode_map[' '] = "%20";
+            encode_map['<'] = "%3C";
+            encode_map['>'] = "%3E"; 
+            encode_map['%'] = "%25"; 
+            encode_map['{'] = "%7B"; 
+            encode_map['}'] = "%7D"; 
+            encode_map['|'] = "%7C"; 
+            encode_map['\\'] = "%5C"; 
+            encode_map['^'] = "%5E"; 
+            encode_map['~'] = "%7E";
+            encode_map['['] = "%5B";
+            encode_map[']'] = "%5D";
+            encode_map['`'] = "%60";
+            encode_map['\''] = "%27";
+            encode_map[';'] = "%3B";
+            encode_map[':'] = "%3A"; 
+            encode_map['@'] = "%40"; 
+            encode_map['$'] = "%24";
+        }
+
+        struct EncodeUrl
+        {
+            std::map<char, CL_String> &encode_map;
+
+            EncodeUrl(std::map<char, CL_String> &encode_map) : encode_map(encode_map){}
+            
+            CL_String operator()(const CL_String &acc, char ch) const
+            {
+                std::map<char, CL_String>::const_iterator i = encode_map.find(ch);
+                if(i == encode_map.end())
+                {
+                    return acc+CL_String(1, ch);
+                }
+                else
+                {
+                    return acc+i->second;
+                }
+            }
+        };
+
+        return std::accumulate(url.begin(), url.end(), CL_String(), EncodeUrl(encode_map));
+    }
+
+public:
+    HTTPClient(const CL_String &host, const CL_String &port, const CL_String &username="", const CL_String &password="")
+        : host(host), port(port), auth_string(encode_http_auth(username, password)), connection(CL_SocketName(host, port))
+    {
+        connection.set_nodelay(true);
+    }
+
+    ~HTTPClient()
+    {
+        close();
+    }
+
+    void close()
+    {
+        connection.disconnect_graceful();
+    }
+
+    CL_String get_header_string(const HTTPHeader &header) const
+    {
+        return header_to_string(header);
+    }
+
+    CL_String download_url(const CL_String &path, const HTTPHeader &header, const CL_String &refererer_url="", int timeout=15000)
+    {
+        CL_String request;
+
+        CL_String encoded_path = url_encode(path);
+        request = cl_format("GET %1 HTTP/1.1\r\n", encoded_path);
+
+        HTTPHeader header_copy = header;
+
+        if(auth_string.empty() == false)
+        {
+            header_copy["Authorization"] = auth_string;
+        }
+
+        header_copy["Host"] = host;
+
+        if(refererer_url.empty() == false)
+        {
+            header_copy["Referer"] = refererer_url;
+        }
+
+        request += header_to_string(header_copy);
+
+        connection.send(request.data(), request.length(), true);      
+
+        CL_String response;
+        while (connection.get_read_event().wait(timeout))
+        {
+            char buffer[16*1024];
+            int received = connection.read(buffer, 16*1024, false);
+            if (received == 0)
+                break;
+            response.append(buffer, received);
+        }
+        
+        CL_String response_header = response.substr(0, response.find("\r\n\r\n"));
+        CL_String content = response.substr(response_header.length() + 4);
+
+        if (response_header.find("Transfer-Encoding: chunked") != CL_String::npos)
+        {
+            CL_String::size_type start = 0;
+            while (true)
+            {
+                CL_String::size_type end = content.find("\r\n", start);
+                if (end == CL_String::npos)
+                    end = content.length();
+
+                CL_String str_length = content.substr(start, end-start);
+                int length = CL_StringHelp::text_to_int(str_length, 16);
+                content = content.substr(0, start) + content.substr(end+2);
+                start += length;
+
+
+                end = content.find("\r\n", start);
+                if (end == CL_String::npos)
+                    end = content.length();
+                content = content.substr(0, start) + content.substr(end+2);
+
+                if (length == 0)
+                    break;
+            }
+        }
+
+        return content;
+    }
+
+};
+
+class MyAnimeListClient
+{
+public:
+    std::vector<ShowItem> search(const CL_String &query) const
+    {
+        HTTPHeader header;
+        HTTPClient client("myanimelist.net", "80", "animerecord", "animerecord");
+
+        CL_String xmldoc = client.download_url(cl_format("/api/anime/search.xml?q=%1", query), header);
+
+
+        if(xmldoc == "Invalid credentials")
+            throw CL_Exception("Invalid username or password");
+
+        if(xmldoc == "No results")
+            xmldoc = "";
+
+
+        CL_DataBuffer docdata(xmldoc.data(), xmldoc.length());
+        CL_IODevice_Memory docmem(docdata);
+        CL_DomDocument doc(docmem);
+       
+        CL_XPathEvaluator xpath;
+        CL_XPathObject obj = xpath.evaluate("anime/entry", doc);
+        std::vector<CL_DomNode> nodes = obj.get_node_set();
+
+        std::vector<ShowItem> shows;
+
+        for(std::vector<CL_DomNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+        {
+            ShowItem show;
+            CL_DomNode child = it->get_first_child();
+            CL_String output;
+            while(child.is_null() == false)
+            {
+                if(child.get_node_name() == "title")
+                    show.title = child.to_element().get_text();
+
+                if(child.get_node_name() == "score")
+                    show.rating = CL_StringHelp::text_to_double(child.to_element().get_text());
+
+                if(child.get_node_name() == "episodes")
+                    show.episodes = CL_StringHelp::text_to_int(child.to_element().get_text());
+
+                //if(child.get_node_name() == "status")
+                //    output += " -- " + child.to_element().get_text();
+
+                if(child.get_node_name() == "synopsis")
+                    show.comment = child.to_element().get_text();
+
+                child = child.get_next_sibling();
+            }
+            shows.push_back(show);
+        }
+
+        struct SortFun
+        {
+            bool operator()(const ShowItem &show1, const ShowItem &show2)
+            {
+                return show1.title < show2.title;
+            }
+        };
+
+        std::sort(shows.begin(), shows.end(), SortFun());
+
+        return shows;
+    }
 };
 
 
@@ -355,6 +647,7 @@ class TabManager
     // pages
     CL_AutoPtr<Page> addPage;
     CL_AutoPtr<Page> viewPage;
+    CL_AutoPtr<Page> searchPage;
 
 public:
     TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &database);
@@ -371,6 +664,126 @@ public:
     {
         load_show_item(si);
         get_tab()->show_page(addPage->get_id());
+    }
+};
+
+class SearchPage : public Page
+{
+    CL_TabPage *page;
+    std::vector<GenreItemCheckbox> genreItems;
+    CL_SharedPtr<Database> database;
+
+    CL_ListView *result;
+    CL_LineEdit *search;
+    CL_PushButton *previous, *next, *edit;
+    CL_LineEdit *pagenumber;
+
+    int currentPage;
+
+    void on_search_enter_pressed()
+    {
+        MyAnimeListClient client;
+        std::vector<ShowItem> shows = client.search(search->get_text());
+
+
+        CL_ListViewItem docItem = result->get_document_item();
+
+        while(docItem.get_child_count() != 100)
+        {
+            CL_ListViewItem item = result->create_item();
+            docItem.append_child(item);
+        }
+
+        CL_ListViewItem child = docItem.get_first_child();
+
+        CL_ListViewColumnHeader titleColumn = result->get_header()->get_column("title");
+        CL_ListViewColumnHeader ratingColumn = result->get_header()->get_column("rating");
+        CL_ListViewColumnHeader commentColumn = result->get_header()->get_column("comment");
+
+        CL_String titleColumnId = titleColumn.get_column_id();
+        CL_String ratingColumnId = ratingColumn.get_column_id();
+        CL_String commentColumnId = commentColumn.get_column_id();
+
+        CL_String titleColumnName = cl_format("Title(%1)", shows.size());
+
+        CL_GUIThemePart listThemePart(result, "selection");
+        CL_Font font = listThemePart.get_font();
+        int padding = listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-right", "4")) + 
+                      listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-left", "3")) + 5;
+
+        int maxWidth = font.get_text_size(result->get_gc(), titleColumnName).width + padding;
+        for (std::vector<ShowItem>::const_iterator it = shows.begin(); it != shows.end(); ++it)
+        {            
+            int textWidth = font.get_text_size(result->get_gc(), it->title).width + padding;
+            if(maxWidth < textWidth) maxWidth = textWidth;
+
+            ShowItem *showItemCopy = new ShowItem;
+            *showItemCopy = *it;
+
+            child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
+            child.set_column_text(titleColumnId, it->title);
+            child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->rating, 2));
+            child.set_column_text(commentColumnId, clean(it->comment, CL_String("\r\n")));
+            child = child.get_next_sibling();
+        }
+        if(maxWidth > 0) titleColumn.set_width(maxWidth);
+
+        while(child.is_null() == false)
+        {
+            child.set_userdata(CL_UnknownSharedPtr());
+            child.set_column_text(titleColumnId, "");
+            child.set_column_text(ratingColumnId, "");
+            child.set_column_text(commentColumnId, "");
+            child = child.get_next_sibling();
+        }
+
+        titleColumn.set_caption(titleColumnName);
+        //update_current_page_number();
+
+    }
+
+public:
+    SearchPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &database) 
+        : Page(page->get_id()), page(page), database(database), currentPage(0),
+        pagenumber(CL_LineEdit::get_named_item(page, "pagenumber")),
+        result(CL_ListView::get_named_item(page, "result")),
+        search(CL_LineEdit::get_named_item(page, "search")),
+        previous(CL_PushButton::get_named_item(page, "previous")),
+        next(CL_PushButton::get_named_item(page, "next")),
+        edit(CL_PushButton::get_named_item(page, "edit"))
+    {
+        search->func_enter_pressed().set(this, &SearchPage::on_search_enter_pressed);
+
+        //previous->func_clicked().set(this, &SearchPage::on_previous_clicked);
+        //next->func_clicked().set(this, &SearchPage::on_next_clicked);
+        //edit->func_clicked().set(this, &SearchPage::on_edit_clicked);
+
+        result->get_icon_list().clear();
+        result->set_multi_select(false);
+        result->set_select_whole_row(true);
+
+        pagenumber->set_alignment(CL_LineEdit::align_center);
+        pagenumber->set_read_only(true);
+
+        CL_ListViewColumnHeader column = result->get_header()->create_column("title", "Title");
+        result->get_header()->append(column);
+
+
+        CL_GUIThemePart listThemePart(result, "selection");
+        int padding = listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-right", "4")) + 
+            listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-left", "3")) + 5;
+
+        column = result->get_header()->create_column("rating", "Rating");
+        result->get_header()->append(column);
+        column.set_width(listThemePart.get_font().get_text_size(result->get_gc(), "Rating").width+padding);
+
+        column = result->get_header()->create_column("comment", "Comment");
+        result->get_header()->append(column);
+    }
+
+    virtual ~SearchPage()
+    {
+
     }
 };
 
@@ -566,7 +979,7 @@ private:
         date_updated.request_repaint();
         title.set_text(show.title);
         year.set_value(show.year);
-        rating.set_position(show.rating);
+        rating.set_position((int)show.rating);
         if(rating.func_value_changed().is_null() == false)
             rating.func_value_changed().invoke();
         comment.set_text(show.comment);
@@ -721,6 +1134,7 @@ private:
 
         }
     }
+
 
     void on_clear_clicked()
     {
@@ -894,7 +1308,7 @@ class ViewPage : public Page
 
             child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
             child.set_column_text(titleColumnId, it->title);
-            child.set_column_text(ratingColumnId, cl_format("%1", it->rating));
+            child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->rating, 2));
             child.set_column_text(commentColumnId, it->comment);
             child = child.get_next_sibling();
         }
@@ -954,7 +1368,7 @@ public:
           previous(CL_PushButton::get_named_item(page, "previous")),
           next(CL_PushButton::get_named_item(page, "next")),
           edit(CL_PushButton::get_named_item(page, "edit"))
-    {
+    {        
         search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
         previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
         next->func_clicked().set(this, &ViewPage::on_next_clicked);
@@ -995,9 +1409,11 @@ TabManager::TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &da
     CL_GUILayoutCorners layout;
 
     CL_TabPage *pageAdd = tab->add_page("Add Show", 0);
-    pageAdd->set_layout(layout);
     CL_TabPage *pageView = tab->add_page("View Records",1);
+    CL_TabPage *pageSearch = tab->add_page("Search MyAnimeList",2);
+    pageAdd->set_layout(layout);
     pageView->set_layout(layout);
+    pageSearch->set_layout(layout);
 
     // add start page
     pageAdd->create_components("add.gui");
@@ -1007,6 +1423,10 @@ TabManager::TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &da
     // find/view records
     pageView->create_components("view.gui");
     viewPage = new ViewPage(pageView, this, database);
+
+    // myanimelist search page
+    pageSearch->create_components("view.gui");
+    searchPage = new SearchPage(pageSearch, this, database);
 
 }
 
@@ -1086,7 +1506,7 @@ public:
     static int main(Args args)
     {
 #ifdef ENABLE_CONSOLE
-        CL_ConsoleWindow console("Console", 80, 160);
+        CL_ConsoleWindow console("Console", 150, 2000);
 #endif
 
         try
@@ -1098,6 +1518,8 @@ public:
             CL_SetupDisplay setup_display;
 
             CL_SetupGUI setup_gui;
+
+            CL_SetupNetwork setup_network;
             
 
 #ifdef USE_SOFTWARE_RENDERER
@@ -1121,7 +1543,7 @@ public:
         {
             // Create a console window for text-output if not available
 #ifndef ENABLE_CONSOLE
-            CL_ConsoleWindow console("Console", 80, 160);
+            CL_ConsoleWindow console("Console", 150, 2000);
 #endif
             CL_Console::write_line("Exception caught: %1", exception.what());
             console.display_close_message();
