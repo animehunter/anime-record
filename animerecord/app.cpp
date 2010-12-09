@@ -904,10 +904,57 @@ class SearchPage : public Page
                 if(show->second.genres.empty())
                 {
                     MyAnimeListClient client;
-                    std::vector<CL_String> genreStrs = client.get_genres(show->first);
 
-                    database->ensure_add_genres(genreStrs);
-                    show->second.genres = database->get_genres_by_name(genreStrs);
+                    std::vector<CL_String> genreStrs = client.get_genres(show->first);
+                    std::vector<GenreItem> genreItems = database->get_all_genres();
+
+
+                    struct CompareFun
+                    {
+                        bool operator()(const CL_String &i1, const GenreItem &i2)
+                        {
+                            return i1 < i2.name;
+                        }
+                        bool operator()(const GenreItem &i1, const CL_String &i2)
+                        {
+                            return i1.name < i2;
+                        }
+                        bool operator()(const GenreItem &i1, const GenreItem &i2)
+                        {
+                            return i1.name < i2.name;
+                        }
+                    };
+
+
+                    std::sort(genreStrs.begin(), genreStrs.end(), std::less<CL_String>());
+                    std::sort(genreItems.begin(), genreItems.end(), CompareFun());
+
+                    std::vector<CL_String> genreStrsOrig = genreStrs;
+
+                    std::vector<CL_String>::const_iterator genreStrsEnd = std::set_difference(genreStrs.begin(), genreStrs.end(), 
+                                                                                              genreItems.begin(), genreItems.end(), 
+                                                                                              genreStrs.begin(), CompareFun());
+                    std::vector<CL_String>::const_iterator genreStrsStart = genreStrs.begin();
+                    genreStrs.resize(std::distance(genreStrsStart, genreStrsEnd));
+
+                    if(genreStrs.empty() == false)
+                    {
+                        MessageDialog msg(page, "Question", 
+                                          cl_format("The following genres will be added to the database:\n%1\nDo you wish to continue?", 
+                                                    join(genreStrs.begin(), genreStrs.end(), CL_String(", "))),
+                                          MessageDialog::ASK_YES_NO);
+                        msg.exec();
+
+                        if(msg.getResult() == MessageDialog::YES)
+                        {
+                            database->ensure_add_genres(genreStrs);
+                        }
+                        else
+                        {
+                            return;
+                        }
+                    }
+                    show->second.genres = database->get_genres_by_name(genreStrsOrig);
                 }
                                 
                 tabMan->display_show_item(show->second);
