@@ -388,14 +388,22 @@ public:
                 if(child.get_node_name() == "episodes")
                     show.episodes = CL_StringHelp::text_to_int(child.to_element().get_text());
 
-                //if(child.get_node_name() == "status")
-                //    output += " -- " + child.to_element().get_text();
+                // example date: 2007-12-22
+                if(child.get_node_name() == "start_date")
+                {
+                    show.year = CL_StringHelp::text_to_int(child.to_element().get_text().substr(0,4));
+                }
 
                 if(child.get_node_name() == "synopsis")
                     show.comment = child.to_element().get_text();
 
                 child = child.get_next_sibling();
             }
+            show.id = -1;
+            show.type = "Anime";
+            show.status = PLANNING;
+            show.season = 1;
+
             shows.push_back(show);
         }
 
@@ -744,6 +752,7 @@ public:
 class SearchPage : public Page
 {
     CL_TabPage *page;
+    TabManager *tabMan;
     std::vector<GenreItemCheckbox> genreItems;
     CL_SharedPtr<Database> database;
 
@@ -818,9 +827,21 @@ class SearchPage : public Page
 
     }
 
+    void on_edit_clicked()
+    {
+        if(result->get_selected_item().is_null() == false)
+        {
+            CL_SharedPtr<ShowItem> show = result->get_selected_item().get_userdata();
+            if(show.is_null() == false)
+            {
+                tabMan->display_show_item(*show);
+            }   
+        }
+    }
+
 public:
     SearchPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &database) 
-        : Page(page->get_id()), page(page), database(database), currentPage(0),
+        : Page(page->get_id()), tabMan(tabMan), page(page), database(database), currentPage(0),
         pagenumber(CL_LineEdit::get_named_item(page, "pagenumber")),
         result(CL_ListView::get_named_item(page, "result")),
         search(CL_LineEdit::get_named_item(page, "search")),
@@ -832,7 +853,7 @@ public:
 
         //previous->func_clicked().set(this, &SearchPage::on_previous_clicked);
         //next->func_clicked().set(this, &SearchPage::on_next_clicked);
-        //edit->func_clicked().set(this, &SearchPage::on_edit_clicked);
+        edit->func_clicked().set(this, &SearchPage::on_edit_clicked);
 
         result->get_icon_list().clear();
         result->set_multi_select(false);
@@ -1076,12 +1097,24 @@ private:
         CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
         CL_Spin &season = *CL_Spin::get_named_item(page, "season");
 
-        id.set_text(cl_format("%1", show.id));
-        id.request_repaint();
-        date_added.set_text(show.date_added.to_local().to_short_datetime_string());
-        date_added.request_repaint();
-        date_updated.set_text(show.date_updated.to_local().to_short_datetime_string());
-        date_updated.request_repaint();
+        if(show.id != -1)
+        {
+            id.set_text(cl_format("%1", show.id));
+            id.request_repaint();
+        }
+
+        if(show.date_added.is_null() == false)
+        {
+            date_added.set_text(show.date_added.to_local().to_short_datetime_string());
+            date_added.request_repaint();
+        }
+
+        if(show.date_updated.is_null() == false)
+        {
+            date_updated.set_text(show.date_updated.to_local().to_short_datetime_string());
+            date_updated.request_repaint();
+        }
+
         title.set_text(show.title);
         year.set_value(show.year);
         rating.set_position((int)show.rating);
@@ -1422,7 +1455,7 @@ class ViewPage : public Page
             child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
             child.set_column_text(titleColumnId, it->title);
             child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->rating, 2));
-            child.set_column_text(commentColumnId, it->comment);
+            child.set_column_text(commentColumnId, clean(it->comment, CL_String("\r\n")));
             child = child.get_next_sibling();
         }
         if(maxWidth > 0) titleColumn.set_width(maxWidth);
