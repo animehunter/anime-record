@@ -87,12 +87,6 @@ struct SearchQuery
     int limit;
 };
 
-struct GenreItemCheckbox
-{
-    CL_CheckBox *box;
-    int id;
-};
-
 struct GenreItem
 {
     int id;
@@ -347,7 +341,33 @@ public:
 class MyAnimeListClient
 {
 public:
-    std::vector<ShowItem> search(const CL_String &query) const
+    std::vector<CL_String> get_genres(int showid) const
+    {
+        // unofficial myanimelist API!
+        // this function is very slow, only use it when required
+        HTTPHeader header;
+        HTTPClient client("mal-api.com", "80");
+
+        CL_String xmldoc = client.download_url(cl_format("/anime/%1?format=xml", showid), header);
+
+        CL_DataBuffer docdata(xmldoc.data(), xmldoc.length());
+        CL_IODevice_Memory docmem(docdata);
+        CL_DomDocument doc(docmem);
+
+        CL_XPathEvaluator xpath;
+        CL_XPathObject obj = xpath.evaluate("anime/genre", doc);
+        std::vector<CL_DomNode> nodes = obj.get_node_set();
+
+        std::vector<CL_String> genres;
+        for(std::vector<CL_DomNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
+        {
+            genres.push_back(it->to_element().get_text());
+        }
+
+        return genres;
+    }
+
+    std::map<int,ShowItem> search(const CL_String &query) const
     {
         HTTPHeader header;
         HTTPClient client("myanimelist.net", "80", "animerecord", "animerecord");
@@ -370,15 +390,19 @@ public:
         CL_XPathObject obj = xpath.evaluate("anime/entry", doc);
         std::vector<CL_DomNode> nodes = obj.get_node_set();
 
-        std::vector<ShowItem> shows;
+        std::map<int,ShowItem> shows;
 
         for(std::vector<CL_DomNode>::iterator it = nodes.begin(); it != nodes.end(); ++it)
         {
             ShowItem show;
             CL_DomNode child = it->get_first_child();
             CL_String output;
+            int showid;
             while(child.is_null() == false)
             {
+                if(child.get_node_name() == "id")
+                    showid = CL_StringHelp::text_to_int(child.to_element().get_text());
+
                 if(child.get_node_name() == "title")
                     show.title = child.to_element().get_text();
 
@@ -397,25 +421,17 @@ public:
                 if(child.get_node_name() == "synopsis")
                     show.comment = child.to_element().get_text();
 
+
                 child = child.get_next_sibling();
             }
+
             show.id = -1;
             show.type = "Anime";
             show.status = PLANNING;
             show.season = 1;
 
-            shows.push_back(show);
+            shows[showid] = show;
         }
-
-        struct SortFun
-        {
-            bool operator()(const ShowItem &show1, const ShowItem &show2)
-            {
-                return show1.title < show2.title;
-            }
-        };
-
-        std::sort(shows.begin(), shows.end(), SortFun());
 
         return shows;
     }
@@ -479,8 +495,41 @@ public:
         return statuses;
     }
 
+    // returns the GenreItems that were passed to this function with the ID set
+    std::vector<GenreItem> get_genres_by_name(const std::vector<CL_String> &genreStrs)
+    {
+        std::vector<GenreItem> genres;
+        for (std::vector<CL_String>::const_iterator it = genreStrs.begin(); it != genreStrs.end(); ++it)
+        {
+            CL_DBCommand cmd = sql->create_command("select id from genre "
+                                                   "where name = ?1 ", *it);
+            int id = sql->execute_scalar_int(cmd);
+
+            GenreItem item;
+            item.id = id;
+            item.name = *it;
+            genres.push_back(item);
+        }
+
+        return genres;
+    }
+
+    // ensures all genreStrs are added to the database
+    void ensure_add_genres(const std::vector<CL_String> &genreStrs)
+    {
+        for (std::vector<CL_String>::const_iterator it = genreStrs.begin(); it != genreStrs.end(); ++it)
+        {
+            CL_DBTransaction trans = sql->begin_transaction();
+            CL_DBCommand cmd = sql->create_command("insert into genre (name) "
+                                                   "select ?1 " 
+                                                   "where not exists (select * from genre where name = ?1 collate nocase)", *it);
+            sql->execute_non_query(cmd);
+            trans.commit();
+        }
+    }
+
     // returns the inserted show id
-    int add_show(const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, int year, int rating, const CL_String &comment, int episodes, int season, int status)
+    int add_show(const CL_String &title, const CL_String &type, const std::vector<GenreItem> &genres, int year, int rating, const CL_String &comment, int episodes, int season, int status)
     {
         CL_String title_s = strip_sql_symbol(title);
         CL_String type_s = strip_sql_symbol(type);
@@ -500,7 +549,7 @@ public:
         cmd = sql->create_command("insert into show_genre (show_id, genre_id) values (?1,?2)");
         cmd.set_input_parameter(1, showid);
 
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genres.begin(); it != genres.end(); ++it)
+        for (std::vector<GenreItem>::const_iterator it = genres.begin(); it != genres.end(); ++it)
         {
             cmd.set_input_parameter(2, it->id);
             sql->execute_non_query(cmd);
@@ -511,7 +560,7 @@ public:
         return showid;
     }
 
-    void update_show(int showid, const CL_String &title, const CL_String &type, const std::vector<GenreItemCheckbox> &genres, 
+    void update_show(int showid, const CL_String &title, const CL_String &type, const std::vector<GenreItem> &genres, 
                      int year, int rating, const CL_String &comment, int episodes, int season, int status)
     {
         CL_String title_s = strip_sql_symbol(title);
@@ -533,7 +582,7 @@ public:
         cmd = sql->create_command("insert into show_genre (show_id, genre_id) values (?1,?2)");
         cmd.set_input_parameter(1, showid);
 
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genres.begin(); it != genres.end(); ++it)
+        for (std::vector<GenreItem>::const_iterator it = genres.begin(); it != genres.end(); ++it)
         {
             cmd.set_input_parameter(2, it->id);
             sql->execute_non_query(cmd);
@@ -753,7 +802,6 @@ class SearchPage : public Page
 {
     CL_TabPage *page;
     TabManager *tabMan;
-    std::vector<GenreItemCheckbox> genreItems;
     CL_SharedPtr<Database> database;
 
     CL_ListView *result;
@@ -768,7 +816,8 @@ class SearchPage : public Page
     void on_search_enter_pressed()
     {
         MyAnimeListClient client;
-        std::vector<ShowItem> shows = client.search(search->get_text());
+        std::map<int, ShowItem> shows = client.search(search->get_text());
+
 
 
         CL_ListViewItem docItem = result->get_document_item();
@@ -797,20 +846,38 @@ class SearchPage : public Page
                       listThemePart.get_property_int(CL_GUIThemePartProperty("selection-margin-left", "3")) + 5;
 
         int maxWidth = font.get_text_size(result->get_gc(), titleColumnName).width + padding;
-        for (std::vector<ShowItem>::const_iterator it = shows.begin(); it != shows.end(); ++it)
+
+        std::vector<std::pair<int,ShowItem> > showsVector;
+        for (std::map<int, ShowItem>::const_iterator it = shows.begin(); it != shows.end(); ++it)
         {            
-            int textWidth = font.get_text_size(result->get_gc(), it->title).width + padding;
+            showsVector.push_back(*it);
+        }
+
+        struct SortFun
+        {
+            bool operator()(const std::pair<int,ShowItem> &show1, const std::pair<int,ShowItem> &show2)
+            {
+                return show1.second.title < show2.second.title;
+            }
+        };
+
+        std::sort(showsVector.begin(), showsVector.end(), SortFun());
+
+        for (std::vector<std::pair<int,ShowItem> >::const_iterator it = showsVector.begin(); it != showsVector.end(); ++it)
+        {  
+            int textWidth = font.get_text_size(result->get_gc(), it->second.title).width + padding;
             if(maxWidth < textWidth) maxWidth = textWidth;
 
-            ShowItem *showItemCopy = new ShowItem;
+            std::pair<int,ShowItem> *showItemCopy = new std::pair<int,ShowItem>;
             *showItemCopy = *it;
 
             child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
-            child.set_column_text(titleColumnId, it->title);
-            child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->rating, 2));
-            child.set_column_text(commentColumnId, clean(it->comment, CL_String("\r\n")));
+            child.set_column_text(titleColumnId, it->second.title);
+            child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->second.rating, 2));
+            child.set_column_text(commentColumnId, clean(it->second.comment, CL_String("\r\n")));
             child = child.get_next_sibling();
         }
+
         if(maxWidth > 0) titleColumn.set_width(maxWidth);
 
         while(child.is_null() == false)
@@ -831,10 +898,19 @@ class SearchPage : public Page
     {
         if(result->get_selected_item().is_null() == false)
         {
-            CL_SharedPtr<ShowItem> show = result->get_selected_item().get_userdata();
+            CL_SharedPtr<std::pair<int,ShowItem> > show = result->get_selected_item().get_userdata();
             if(show.is_null() == false)
             {
-                tabMan->display_show_item(*show);
+                if(show->second.genres.empty())
+                {
+                    MyAnimeListClient client;
+                    std::vector<CL_String> genreStrs = client.get_genres(show->first);
+
+                    database->ensure_add_genres(genreStrs);
+                    show->second.genres = database->get_genres_by_name(genreStrs);
+                }
+                                
+                tabMan->display_show_item(show->second);
             }   
         }
     }
@@ -887,7 +963,6 @@ public:
 class AddPage : public Page
 {
     CL_TabPage *page;
-    std::vector<GenreItemCheckbox> genreItems;
     CL_SharedPtr<Database> database;
 
     CL_PopupMenu genrePopMenu;
@@ -898,7 +973,6 @@ public:
     {
         CL_LineEdit::get_named_item(page, "title");
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
-        CL_Frame &genreFrame = *CL_Frame::get_named_item(page, "genreFrame");
         CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
         CL_Label &ratingLabel = *CL_Label::get_named_item(page, "ratingLabel");
         CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
@@ -915,6 +989,11 @@ public:
         CL_LineEdit &id = *CL_LineEdit::get_named_item(page, "id");
         CL_LineEdit &date_added = *CL_LineEdit::get_named_item(page, "date_added");
         CL_LineEdit &date_updated = *CL_LineEdit::get_named_item(page, "date_updated");
+
+        CL_ListView &genreSelection = *CL_ListView::get_named_item(page, "genreSelection");
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+        CL_PushButton &addGenre = *CL_PushButton::get_named_item(page, "addGenre");
+        CL_PushButton &removeGenre = *CL_PushButton::get_named_item(page, "removeGenre");
 
         genrePopMenu.insert_item("Anime");
         genrePopMenu.insert_item("Film");
@@ -952,28 +1031,29 @@ public:
         searchButton.func_clicked().set(this, &AddPage::on_search_clicked);
         updateButton.func_clicked().set(this, &AddPage::on_update_clicked);
 
-        std::vector<GenreItem> genres = this->database->get_all_genres();
-        int xPos=10, yPos=15;
-        for(std::vector<GenreItem>::const_iterator it = genres.begin(); it != genres.end(); ++it)
+        addGenre.func_clicked().set(this, &AddPage::on_add_genre_clicked);
+        removeGenre.func_clicked().set(this, &AddPage::on_remove_genre_clicked);
+
+        std::vector<GenreItem> genreItems = this->database->get_all_genres();
+
+        CL_ListViewColumnHeader header = genreSelection.get_header()->create_column("genreSelection", "Available Genre");
+        genreSelection.get_header()->append(header);
+        CL_ListViewItem docItem = genreSelection.get_document_item();
+        for(std::vector<GenreItem>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
         {
-            GenreItemCheckbox item;
-            item.id = it->id;
-            item.box = new CL_CheckBox(page);
-            item.box->set_text(it->name);
-            genreItems.push_back(item);
-
-            CL_Rect genreRect = genreFrame.get_geometry();
-
-            item.box->set_geometry(CL_Rect(genreRect.left+xPos, genreRect.top+yPos, CL_Size(100,20)));
-
-            xPos += 100;
-            if(xPos >= genreRect.right-100)
-            {
-                xPos = 10;
-                yPos += 20;
-            }
-
+            CL_ListViewItem item = genreSelection.create_item();
+            CL_SharedPtr<GenreItem> newGenreItem = CL_SharedPtr<GenreItem>(new GenreItem);
+            *newGenreItem = *it;
+            item.set_userdata(newGenreItem);
+            item.set_column_text("genreSelection", it->name);
+            docItem.append_child(item);
         }
+
+        header = genreAdded.get_header()->create_column("genreAdded", "Selected Genre");
+        genreAdded.get_header()->append(header);
+
+        genreSelection.set_multi_select(false);
+        genreAdded.set_multi_select(false);
 
         std::vector<StatusItem> statuses = this->database->get_all_status();
 
@@ -997,16 +1077,78 @@ public:
     }
 
 private:
-
-    std::vector<GenreItemCheckbox> get_selected_genres() const
+    void on_add_genre_clicked()
     {
-        std::vector<GenreItemCheckbox> genres;
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
+        CL_ListView &genreSelection = *CL_ListView::get_named_item(page, "genreSelection");
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+
+        if(genreSelection.get_selected_item().is_null() == false)
         {
-            if(it->box->is_checked())
+            CL_String genreText = genreSelection.get_selected_item().get_column("genreSelection").get_text();
+            CL_ListViewItem genreItem = genreAdded.find("genreAdded", genreText);
+            if(genreItem.is_null())
             {
-                genres.push_back(*it);
+                CL_ListViewItem newGenreItem = genreAdded.create_item();
+                newGenreItem.set_column_text("genreAdded", genreText);
+                newGenreItem.set_userdata(genreSelection.get_selected_item().get_userdata());
+                genreAdded.get_document_item().append_child(newGenreItem);
+
+                // sort the added genre items by re-adding the items
+                std::vector<CL_SharedPtr<GenreItem> > items;
+                CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
+                while(child.is_null() == false)
+                {
+                    CL_SharedPtr<GenreItem> item = child.get_userdata();
+                    items.push_back(item);
+                    child = child.get_next_sibling();
+                }
+                genreAdded.clear();
+                
+                struct SortFun
+                {
+                    bool operator()(const CL_SharedPtr<GenreItem> &item1, const CL_SharedPtr<GenreItem> &item2)
+                    {
+                        return item1->name < item2->name;
+                    }
+                };
+
+                std::sort(items.begin(), items.end(), SortFun());
+
+                CL_ListViewItem genreAddedDocItem = genreAdded.get_document_item(); 
+                for (std::vector<CL_SharedPtr<GenreItem> >::iterator it = items.begin(); it != items.end(); ++it)
+                {
+                    CL_ListViewItem newItem = genreAdded.create_item();
+                    newItem.set_column_text("genreAdded", (*it)->name);
+                    newItem.set_userdata(*it);
+                    genreAddedDocItem.append_child(newItem);
+                }
             }
+        }
+
+    }
+
+    void on_remove_genre_clicked()
+    {
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+
+        CL_ListViewItem selectedItem = genreAdded.get_selected_item();
+
+        if(selectedItem.is_null() == false)
+            selectedItem.remove();
+    }
+
+    std::vector<GenreItem> get_selected_genres() const
+    {
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+
+        std::vector<GenreItem> genres;
+
+        CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
+        while(child.is_null() == false)
+        {
+            CL_SharedPtr<GenreItem> item = child.get_userdata();
+            genres.push_back(*item);
+            child = child.get_next_sibling();
         }
 
         return genres;
@@ -1014,13 +1156,10 @@ private:
 
     void clear_genre() const
     {
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
-        {
-            it->box->set_checked(false);
-        }
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+        genreAdded.clear();
     }
-
-
+    
     void on_rating_changed()
     {
         CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
@@ -1096,24 +1235,39 @@ private:
         CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
         CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
         CL_Spin &season = *CL_Spin::get_named_item(page, "season");
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+        CL_ListView &genreSelection = *CL_ListView::get_named_item(page, "genreSelection");
 
         if(show.id != -1)
         {
             id.set_text(cl_format("%1", show.id));
-            id.request_repaint();
         }
+        else
+        {
+            id.set_text("");
+        }
+        id.request_repaint();
 
         if(show.date_added.is_null() == false)
         {
             date_added.set_text(show.date_added.to_local().to_short_datetime_string());
-            date_added.request_repaint();
+            
         }
+        else
+        {
+            date_added.set_text("");
+        }
+        date_added.request_repaint();
 
         if(show.date_updated.is_null() == false)
         {
             date_updated.set_text(show.date_updated.to_local().to_short_datetime_string());
-            date_updated.request_repaint();
         }
+        else
+        {
+            date_updated.set_text("");
+        }
+        date_updated.request_repaint();
 
         title.set_text(show.title);
         year.set_value(show.year);
@@ -1127,13 +1281,27 @@ private:
         set_media_type(show.type);
         clear_genre();
 
-        for (std::vector<GenreItemCheckbox>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
+        // update the available genre list since it may have been changed when a new anime was added
+        genreSelection.clear();
+        std::vector<GenreItem> genreItems = database->get_all_genres();
+        CL_ListViewItem docItem = genreSelection.get_document_item();
+        for(std::vector<GenreItem>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
         {
+            CL_ListViewItem item = genreSelection.create_item();
+            CL_SharedPtr<GenreItem> newGenreItem = CL_SharedPtr<GenreItem>(new GenreItem);
+            *newGenreItem = *it;
+            item.set_userdata(newGenreItem);
+            item.set_column_text("genreSelection", it->name);
+            docItem.append_child(item);
+
             for(std::vector<GenreItem>::const_iterator it2 = show.genres.begin(); it2 != show.genres.end(); ++it2)
             {
                 if(it2->id == it->id)
                 {
-                    it->box->set_checked(true);
+                    CL_ListViewItem newItem = genreAdded.create_item();
+                    newItem.set_userdata(newGenreItem);
+                    newItem.set_column_text("genreAdded", it->name);
+                    genreAdded.get_document_item().append_child(newItem);
                 }
             }
         }

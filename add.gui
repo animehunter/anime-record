@@ -2,7 +2,6 @@
 	<label class="" id="label1" enabled="true" text="Title" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="28" dist_br_x="40" dist_br_y="48" geom="11,28,40,48"/>
 	<lineedit class="" id="title" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="28" dist_br_x="326" dist_br_y="48" geom="35,28,326,48"/>
 	<label class="" id="label3" enabled="true" text="Year" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="60" dist_br_x="40" dist_br_y="77" geom="11,60,40,77"/>
-	<frame class="" id="genreFrame" enabled="true" text="Genre" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="100" dist_br_x="549" dist_br_y="293" geom="11,100,549,293"/>
 	<label class="" id="label4" enabled="true" text="Comment" anchor_tl="0" anchor_br="0" dist_tl_x="245" dist_tl_y="335" dist_br_x="291" dist_br_y="348" geom="245,335,291,348"/>
 	<slider class="" id="rating" enabled="true" min="0" max="10" ticks="10" page_step="1" anchor_tl="0" anchor_br="0" dist_tl_x="59" dist_tl_y="308" dist_br_x="506" dist_br_y="333" geom="59,308,506,333"/>
 	<label class="" id="ratingLabel" enabled="true" text="/10" anchor_tl="0" anchor_br="0" dist_tl_x="517" dist_tl_y="308" dist_br_x="558" dist_br_y="326" geom="517,308,558,326"/>
@@ -26,5 +25,13 @@
 	<label class="" id="label3" enabled="true" text="U" anchor_tl="0" anchor_br="0" dist_tl_x="310" dist_tl_y="3" dist_br_x="318" dist_br_y="16" geom="310,3,318,16"/>
 	<combobox class="" id="mediatype" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="457" dist_tl_y="3" dist_br_x="549" dist_br_y="23" geom="457,3,549,23"/>
 	<combobox class="" id="status" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="457" dist_tl_y="28" dist_br_x="549" dist_br_y="48" geom="457,28,549,48"/>
+	<listview class="" id="genreSelection" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="10" dist_tl_y="104" dist_br_x="210" dist_br_y="293" geom="10,104,210,293">
+		<listview_header/>
+	</listview>
+	<listview class="" id="genreAdded" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="347" dist_tl_y="104" dist_br_x="547" dist_br_y="293" geom="347,104,547,293">
+		<listview_header/>
+	</listview>
+	<button class="" id="addGenre" enabled="true" text="---&gt;" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="162" dist_br_x="326" dist_br_y="185" geom="231,162,326,185"/>
+	<button class="" id="removeGenre" enabled="true" text="&lt;---" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="205" dist_br_x="326" dist_br_y="228" geom="231,205,326,228"/>
 	<dialog width="559" height="416"/>
 </gui>
