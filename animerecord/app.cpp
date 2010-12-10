@@ -540,7 +540,7 @@ public:
 
         CL_DBTransaction transaction = sql->begin_transaction();
 
-        CL_DBCommand cmd = sql->create_command("insert into show (title, type, year, rating, comment, episodes, season) values (?1,?2,?3,?4,?5,?6,?7,?8)",
+        CL_DBCommand cmd = sql->create_command("insert into show (title, type, year, rating, comment, episodes, season, status) values (?1,?2,?3,?4,?5,?6,?7,?8)",
                                                 title_s, type_s, year, rating, comment_s, episodes, season, status);
         sql->execute_non_query(cmd);
 
@@ -1081,22 +1081,9 @@ public:
         addGenre.func_clicked().set(this, &AddPage::on_add_genre_clicked);
         removeGenre.func_clicked().set(this, &AddPage::on_remove_genre_clicked);
 
-        std::vector<GenreItem> genreItems = this->database->get_all_genres();
+        refresh_available_genre_list();
 
-        CL_ListViewColumnHeader header = genreSelection.get_header()->create_column("genreSelection", "Available Genre");
-        genreSelection.get_header()->append(header);
-        CL_ListViewItem docItem = genreSelection.get_document_item();
-        for(std::vector<GenreItem>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
-        {
-            CL_ListViewItem item = genreSelection.create_item();
-            CL_SharedPtr<GenreItem> newGenreItem = CL_SharedPtr<GenreItem>(new GenreItem);
-            *newGenreItem = *it;
-            item.set_userdata(newGenreItem);
-            item.set_column_text("genreSelection", it->name);
-            docItem.append_child(item);
-        }
-
-        header = genreAdded.get_header()->create_column("genreAdded", "Selected Genre");
+        CL_ListViewColumnHeader header = genreAdded.get_header()->create_column("genreAdded", "Selected Genre(0)");
         genreAdded.get_header()->append(header);
 
         genreSelection.set_multi_select(false);
@@ -1115,6 +1102,7 @@ public:
         status.set_focus_policy(CL_GUIComponent::focus_refuse);
     }
 
+
     virtual ~AddPage() {}
 
     virtual void fill_page(const void *data)
@@ -1124,6 +1112,45 @@ public:
     }
 
 private:
+
+    void update_genre_added_header() const
+    {
+        CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
+        genreAdded.get_header()->get_column("genreAdded").set_caption(cl_format("Selected Genre(%1)", genreAdded.get_document_item().get_child_count()));
+    }
+
+    std::vector<CL_SharedPtr<GenreItem> > refresh_available_genre_list() 
+    {
+        CL_ListView &genreSelection = *CL_ListView::get_named_item(page, "genreSelection");
+
+        genreSelection.clear();
+
+        std::vector<GenreItem> genreItems = this->database->get_all_genres();
+
+        std::vector<CL_SharedPtr<GenreItem> > genreItemsPtr;
+
+        if(genreSelection.get_header()->get_column("genreSelection").is_null())
+        {
+            CL_ListViewColumnHeader header = genreSelection.get_header()->create_column("genreSelection", "Available Genre");
+            genreSelection.get_header()->append(header);
+        }
+
+        CL_ListViewItem docItem = genreSelection.get_document_item();
+        for(std::vector<GenreItem>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
+        {
+            CL_ListViewItem item = genreSelection.create_item();
+            CL_SharedPtr<GenreItem> newGenreItem = CL_SharedPtr<GenreItem>(new GenreItem);
+            genreItemsPtr.push_back(newGenreItem);
+            *newGenreItem = *it;
+            item.set_userdata(newGenreItem);
+            item.set_column_text("genreSelection", it->name);
+            docItem.append_child(item);
+        }
+        genreSelection.get_header()->get_column("genreSelection").set_caption(cl_format("Available Genre(%1)", genreItems.size()));
+
+        return genreItemsPtr;
+    }
+
     void on_add_genre_clicked()
     {
         CL_ListView &genreSelection = *CL_ListView::get_named_item(page, "genreSelection");
@@ -1169,6 +1196,7 @@ private:
                     newItem.set_userdata(*it);
                     genreAddedDocItem.append_child(newItem);
                 }
+                update_genre_added_header();
             }
         }
 
@@ -1181,7 +1209,11 @@ private:
         CL_ListViewItem selectedItem = genreAdded.get_selected_item();
 
         if(selectedItem.is_null() == false)
+        {
             selectedItem.remove();
+            
+            update_genre_added_header();
+        }
     }
 
     std::vector<GenreItem> get_selected_genres() const
@@ -1205,6 +1237,7 @@ private:
     {
         CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
         genreAdded.clear();
+        update_genre_added_header();
     }
     
     void on_rating_changed()
@@ -1329,29 +1362,23 @@ private:
         clear_genre();
 
         // update the available genre list since it may have been changed when a new anime was added
-        genreSelection.clear();
-        std::vector<GenreItem> genreItems = database->get_all_genres();
-        CL_ListViewItem docItem = genreSelection.get_document_item();
-        for(std::vector<GenreItem>::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
-        {
-            CL_ListViewItem item = genreSelection.create_item();
-            CL_SharedPtr<GenreItem> newGenreItem = CL_SharedPtr<GenreItem>(new GenreItem);
-            *newGenreItem = *it;
-            item.set_userdata(newGenreItem);
-            item.set_column_text("genreSelection", it->name);
-            docItem.append_child(item);
+        std::vector<CL_SharedPtr<GenreItem> > genreItems = refresh_available_genre_list();
 
-            for(std::vector<GenreItem>::const_iterator it2 = show.genres.begin(); it2 != show.genres.end(); ++it2)
+        for(std::vector<GenreItem>::const_iterator it2 = show.genres.begin(); it2 != show.genres.end(); ++it2)
+        {
+            for(std::vector<CL_SharedPtr<GenreItem> >::const_iterator it = genreItems.begin(); it != genreItems.end(); ++it)
             {
-                if(it2->id == it->id)
+                if(it2->id == (*it)->id)
                 {
                     CL_ListViewItem newItem = genreAdded.create_item();
-                    newItem.set_userdata(newGenreItem);
-                    newItem.set_column_text("genreAdded", it->name);
+                    newItem.set_userdata(*it);
+                    newItem.set_column_text("genreAdded", (*it)->name);
                     genreAdded.get_document_item().append_child(newItem);
                 }
             }
         }
+
+        update_genre_added_header();
     }
 
 
@@ -1373,10 +1400,6 @@ private:
             if(trimmedTitle.empty())
             {
                 MessageDialog(page, "Error", "The Title cannot be blank").exec();
-            }
-            else if(episodes.get_value() <= 0)
-            {
-                MessageDialog(page, "Error", "The number of Episodes must be greater than 0").exec();
             }
             else if(season.get_value() <= 0)
             {
@@ -1442,10 +1465,6 @@ private:
             else if(trimmedTitle.empty())
             {
                 MessageDialog(page, "Error", "The Title cannot be blank").exec();
-            }
-            else if(episodes.get_value() <= 0)
-            {
-                MessageDialog(page, "Error", "The number of Episodes must be greater than 0").exec();
             }
             else if(season.get_value() <= 0)
             {
