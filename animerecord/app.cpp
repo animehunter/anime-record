@@ -1751,6 +1751,14 @@ class ViewPage : public Page
         refresh_list();
     }
 
+    void on_visiblity_changed(bool visible)
+    {
+        if(visible)
+        {
+            refresh_list();
+        }
+    }
+
 public:
     ViewPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &db)
         : Page(page->get_id()), tabMan(tabMan), database(db), currentPage(0), viewing_status_mask(0),
@@ -1765,6 +1773,8 @@ public:
           planning(CL_CheckBox::get_named_item(page, "planning")), 
           dropped(CL_CheckBox::get_named_item(page, "dropped"))
     {        
+        page->func_visibility_change().set(this, &ViewPage::on_visiblity_changed);
+
         search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
         previous->func_clicked().set(this, &ViewPage::on_previous_clicked);
         next->func_clicked().set(this, &ViewPage::on_next_clicked);
@@ -1833,7 +1843,6 @@ TabManager::TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &da
     // myanimelist search page
     pageSearch->create_components("view.gui");
     searchPage = new SearchPage(pageSearch, this, database);
-
 }
 
 CL_Tab *TabManager::get_tab() const 
