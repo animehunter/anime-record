@@ -449,6 +449,22 @@ class Database
     }
 
 
+    /// \brief Create database command with 8 input arguments.
+    template <class Arg1, class Arg2, class Arg3, class Arg4, class Arg5, class Arg6, class Arg7, class Arg8>
+    CL_DBCommand create_command(const CL_StringRef &format, Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4, Arg5 arg5, Arg6 arg6, Arg7 arg7, Arg8 arg8, CL_DBCommand::Type type = CL_DBCommand::sql_statement)
+    { return begin_arg(format, type).set_arg(arg1).set_arg(arg2).set_arg(arg3).set_arg(arg4).set_arg(arg5).set_arg(arg6).set_arg(arg7).set_arg(arg8).get_result(); }
+
+    /// \brief Create database command with 9 input arguments.
+    template <class Arg1, class Arg2, class Arg3, class Arg4, class Arg5, class Arg6, class Arg7, class Arg8, class Arg9>
+    CL_DBCommand create_command(const CL_StringRef &format, Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4, Arg5 arg5, Arg6 arg6, Arg7 arg7, Arg8 arg8, Arg9 arg9, CL_DBCommand::Type type = CL_DBCommand::sql_statement)
+    { return begin_arg(format, type).set_arg(arg1).set_arg(arg2).set_arg(arg3).set_arg(arg4).set_arg(arg5).set_arg(arg6).set_arg(arg7).set_arg(arg8).set_arg(arg9).get_result(); }
+
+    /// \brief Create database command with 10 input arguments.
+    template <class Arg1, class Arg2, class Arg3, class Arg4, class Arg5, class Arg6, class Arg7, class Arg8, class Arg9, class Arg10>
+    CL_DBCommand create_command(const CL_StringRef &format, Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4, Arg5 arg5, Arg6 arg6, Arg7 arg7, Arg8 arg8, Arg9 arg9, Arg10 arg10, CL_DBCommand::Type type = CL_DBCommand::sql_statement)
+    { return begin_arg(format, type).set_arg(arg1).set_arg(arg2).set_arg(arg3).set_arg(arg4).set_arg(arg5).set_arg(arg6).set_arg(arg7).set_arg(arg8).set_arg(arg9).set_arg(arg10).get_result(); }
+
+
 public:
 
     Database()
