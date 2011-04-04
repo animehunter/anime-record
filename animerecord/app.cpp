@@ -31,6 +31,11 @@
 #include <ClanLib/gl.h>
 #endif
 
+// hack fix, should be in clanlib 2.3 svn 
+#ifndef cl_dynamic_cast_pointer
+#define cl_dynamic_cast_pointer std::dynamic_pointer_cast
+#endif
+
 enum VIEWING_STATUS { UNKNOWN=0, WATCHING=1, COMPLETED=2, ONHOLD=3, DROPPED=4, PLANNING=6 };
 enum VIEWING_STATUS_MASK { UNKNOWN_MASK=0, WATCHING_MASK=(1<<1), COMPLETED_MASK=(1<<2), ONHOLD_MASK=(1<<3), DROPPED_MASK=(1<<4), PLANNING_MASK=(1<<6) };
 
@@ -80,6 +85,85 @@ T join(
     return t;
 }
 
+
+class DBArg
+{
+public:
+    DBArg(CL_DBConnection &db, const CL_StringRef &format, CL_DBCommand::Type type) : cmd(db.create_command(format, type)), i(1){}
+
+    DBArg &set_arg(const CL_StringRef &arg)
+    {
+        cmd.set_input_parameter_string(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(const char *arg)
+    {
+        cmd.set_input_parameter_string(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(bool arg)
+    {
+        cmd.set_input_parameter_bool(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(int arg)
+    {
+        cmd.set_input_parameter_int(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(double arg)
+    {
+        cmd.set_input_parameter_double(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(const CL_DateTime &arg)
+    {
+        cmd.set_input_parameter_datetime(i, arg);
+        i++;
+        return *this;
+    }
+
+    DBArg &set_arg(const CL_DataBuffer &arg)
+    {
+        cmd.set_input_parameter_binary(i, arg);
+        i++;
+        return *this;
+    }
+
+    CL_DBCommand get_result() const
+    {
+        return cmd;
+    }
+
+private:
+    CL_DBCommand cmd;
+    int i;
+};
+
+static DBArg begin_arg(CL_DBConnection &sql, const CL_StringRef &format, CL_DBCommand::Type type)
+{
+    return DBArg(sql, format, type);
+}
+
+template <class Arg1, class Arg2, class Arg3, class Arg4, class Arg5, class Arg6, class Arg7, class Arg8>
+CL_DBCommand create_sql_command(CL_DBConnection &sql, const CL_StringRef &format, Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4, Arg5 arg5, Arg6 arg6, Arg7 arg7, Arg8 arg8, CL_DBCommand::Type type = CL_DBCommand::sql_statement)
+{ return begin_arg(sql, format, type).set_arg(arg1).set_arg(arg2).set_arg(arg3).set_arg(arg4).set_arg(arg5).set_arg(arg6).set_arg(arg7).set_arg(arg8).get_result(); }
+
+template <class Arg1, class Arg2, class Arg3, class Arg4, class Arg5, class Arg6, class Arg7, class Arg8, class Arg9>
+CL_DBCommand create_sql_command(CL_DBConnection &sql, const CL_StringRef &format, Arg1 arg1, Arg2 arg2, Arg3 arg3, Arg4 arg4, Arg5 arg5, Arg6 arg6, Arg7 arg7, Arg8 arg8, Arg9 arg9, CL_DBCommand::Type type = CL_DBCommand::sql_statement)
+{ return begin_arg(sql, format, type).set_arg(arg1).set_arg(arg2).set_arg(arg3).set_arg(arg4).set_arg(arg5).set_arg(arg6).set_arg(arg7).set_arg(arg8).set_arg(arg9).get_result(); }
+
+
 struct SearchQuery
 {
     CL_String name;
@@ -87,7 +171,7 @@ struct SearchQuery
     int limit;
 };
 
-struct GenreItem
+struct GenreItem : CL_ListViewItemUserData
 {
     int id;
     CL_String name;
@@ -99,7 +183,7 @@ struct StatusItem
     CL_String name;
 };
 
-struct ShowItem
+struct ShowItem : CL_ListViewItemUserData
 {
     int id;
 
@@ -556,7 +640,7 @@ public:
 
         CL_DBTransaction transaction = sql->begin_transaction();
 
-        CL_DBCommand cmd = sql->create_command("insert into show (title, type, year, rating, comment, episodes, season, status) values (?1,?2,?3,?4,?5,?6,?7,?8)",
+        CL_DBCommand cmd = create_sql_command(*sql, "insert into show (title, type, year, rating, comment, episodes, season, status) values (?1,?2,?3,?4,?5,?6,?7,?8)",
                                                 title_s, type_s, year, rating, comment_s, episodes, season, status);
         sql->execute_non_query(cmd);
 
@@ -588,7 +672,7 @@ public:
 
         CL_DBTransaction transaction = sql->begin_transaction();
 
-        CL_DBCommand cmd = sql->create_command("update show set title=?2, type=?3, year=?4, rating=?5, comment=?6, episodes=?7, season=?8, status=?9 where id=?1",
+        CL_DBCommand cmd = create_sql_command(*sql, "update show set title=?2, type=?3, year=?4, rating=?5, comment=?6, episodes=?7, season=?8, status=?9 where id=?1",
                                                showid, title_s, type_s, year, rating, comment_s, episodes, season, status);
         sql->execute_non_query(cmd);
 
@@ -792,9 +876,9 @@ class TabManager
     CL_Tab *tab;
 
     // pages
-    CL_AutoPtr<Page> addPage;
-    CL_AutoPtr<Page> viewPage;
-    CL_AutoPtr<Page> searchPage;
+    std::auto_ptr<Page> addPage;
+    std::auto_ptr<Page> viewPage;
+    std::auto_ptr<Page> searchPage;
 
 public:
     TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &database);
@@ -813,6 +897,19 @@ public:
         get_tab()->show_page(addPage->get_id());
     }
 };
+
+template<typename T1, typename T2>
+class UserItemPair : public std::pair<T1,T2>, public CL_ListViewItemUserData
+{
+public:
+    UserItemPair &operator =(const std::pair<T1,T2> &rhs)
+    {
+        std::pair<T1,T2>::operator =(rhs);
+        return *this;
+    }
+};
+
+typedef UserItemPair<int,ShowItem> ShowItemPair;
 
 class SearchPage : public Page
 {
@@ -833,8 +930,6 @@ class SearchPage : public Page
     {
         MyAnimeListClient client;
         std::map<int, ShowItem> shows = client.search(search->get_text());
-
-
 
         CL_ListViewItem docItem = result->get_document_item();
 
@@ -884,10 +979,10 @@ class SearchPage : public Page
             int textWidth = font.get_text_size(result->get_gc(), it->second.title).width + padding;
             if(maxWidth < textWidth) maxWidth = textWidth;
 
-            std::pair<int,ShowItem> *showItemCopy = new std::pair<int,ShowItem>;
+            ShowItemPair *showItemCopy = new ShowItemPair;
             *showItemCopy = *it;
 
-            child.set_userdata(CL_SharedPtr<ShowItem>(showItemCopy));
+            child.set_userdata(CL_SharedPtr<ShowItemPair>(showItemCopy));
             child.set_column_text(titleColumnId, it->second.title);
             child.set_column_text(ratingColumnId, CL_StringHelp::double_to_text(it->second.rating, 2));
             child.set_column_text(commentColumnId, clean(it->second.comment, CL_String("\r\n")));
@@ -898,7 +993,7 @@ class SearchPage : public Page
 
         while(child.is_null() == false)
         {
-            child.set_userdata(CL_UnknownSharedPtr());
+            child.set_userdata(CL_SharedPtr<ShowItem>());
             child.set_column_text(titleColumnId, "");
             child.set_column_text(ratingColumnId, "");
             child.set_column_text(commentColumnId, "");
@@ -914,8 +1009,8 @@ class SearchPage : public Page
     {
         if(result->get_selected_item().is_null() == false)
         {
-            CL_SharedPtr<std::pair<int,ShowItem> > show = result->get_selected_item().get_userdata();
-            if(show.is_null() == false)
+            CL_SharedPtr<std::pair<int,ShowItem> > show = cl_dynamic_cast_pointer<std::pair<int,ShowItem> >(result->get_selected_item().get_userdata());
+            if(show)
             {
                 if(show->second.genres.empty())
                 {
@@ -1030,6 +1125,7 @@ class AddPage : public Page
 
     CL_PopupMenu genrePopMenu;
     CL_PopupMenu statusPopMenu;
+    CL_PopupMenu pop; //generic popup menu, currently used for display search results
 
 public:
     AddPage(CL_TabPage *page, TabManager *tabMan, const CL_SharedPtr<Database> &database) : Page(page->get_id()), page(page), database(database)
@@ -1188,7 +1284,7 @@ private:
                 CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
                 while(child.is_null() == false)
                 {
-                    CL_SharedPtr<GenreItem> item = child.get_userdata();
+                    CL_SharedPtr<GenreItem> item = cl_dynamic_cast_pointer<GenreItem>(child.get_userdata());
                     items.push_back(item);
                     child = child.get_next_sibling();
                 }
@@ -1241,7 +1337,7 @@ private:
         CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
         while(child.is_null() == false)
         {
-            CL_SharedPtr<GenreItem> item = child.get_userdata();
+            CL_SharedPtr<GenreItem> item = cl_dynamic_cast_pointer<GenreItem>(child.get_userdata());
             genres.push_back(*item);
             child = child.get_next_sibling();
         }
@@ -1577,7 +1673,7 @@ private:
         CL_String trimmedTitle = trimmed(title);
         std::vector<ShowItem> shows = database->find_shows(trimmedTitle, ALL_VIEWING_STATUS_MASK, start, limit);
 
-        CL_PopupMenu pop;
+        pop.clear();
         pop.insert_item("Cancel");
         pop.insert_item("Clear").func_clicked().set(this, &AddPage::on_clear_clicked);
         pop.insert_separator();
@@ -1712,7 +1808,7 @@ class ViewPage : public Page
         
         while(child.is_null() == false)
         {
-            child.set_userdata(CL_UnknownSharedPtr());
+            child.set_userdata(CL_SharedPtr<ShowItem>());
             child.set_column_text(titleColumnId, "");
             child.set_column_text(ratingColumnId, "");
             child.set_column_text(commentColumnId, "");
@@ -1747,8 +1843,8 @@ class ViewPage : public Page
     {
         if(result->get_selected_item().is_null() == false)
         {
-            CL_SharedPtr<ShowItem> show = result->get_selected_item().get_userdata();
-            if(show.is_null() == false)
+            CL_SharedPtr<ShowItem> show = cl_dynamic_cast_pointer<ShowItem>(result->get_selected_item().get_userdata());
+            if(show)
             {
                 tabMan->display_show_item(*show);
             }   
@@ -1849,16 +1945,16 @@ TabManager::TabManager(CL_GUIComponent *parent, const CL_SharedPtr<Database> &da
 
     // add start page
     pageAdd->create_components("add.gui");
-    addPage = new AddPage(pageAdd, this, database);
+    addPage.reset(new AddPage(pageAdd, this, database));
     // add end page
 
     // find/view records
     pageView->create_components("view.gui");
-    viewPage = new ViewPage(pageView, this, database);
+    viewPage.reset(new ViewPage(pageView, this, database));
 
     // myanimelist search page
     pageSearch->create_components("view.gui");
-    searchPage = new SearchPage(pageSearch, this, database);
+    searchPage.reset(new SearchPage(pageSearch, this, database));
 }
 
 CL_Tab *TabManager::get_tab() const 
@@ -1870,7 +1966,7 @@ class App
 {
     typedef const std::vector<CL_String>& Args;
 
-    CL_AutoPtr<TabManager> tabMan;
+    std::auto_ptr<TabManager> tabMan;
 
     CL_SlotContainer slots;
     bool close_clicked;
@@ -1906,7 +2002,7 @@ private:
   
     void setup_window(CL_Window &win)
     {        
-        tabMan = new TabManager(&win, database);
+        tabMan.reset(new TabManager(&win, database));
                 
         win.func_resized().set(this, &App::on_resize, &win);
     }
