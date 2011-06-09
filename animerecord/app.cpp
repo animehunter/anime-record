@@ -1134,7 +1134,7 @@ public:
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
         CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
         CL_Label &ratingLabel = *CL_Label::get_named_item(page, "ratingLabel");
-        CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+        CL_TextEdit &comment = *CL_TextEdit::get_named_item(page, "comment");
         CL_PushButton &addButton = *CL_PushButton::get_named_item(page, "add");
         CL_PushButton &clearButton = *CL_PushButton::get_named_item(page, "clear");
         CL_PushButton &searchButton = *CL_PushButton::get_named_item(page, "search");
@@ -1424,7 +1424,7 @@ private:
         CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
         CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
-        CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+        CL_TextEdit &comment = *CL_TextEdit::get_named_item(page, "comment");
         CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
         CL_Spin &season = *CL_Spin::get_named_item(page, "season");
         CL_ListView &genreAdded = *CL_ListView::get_named_item(page, "genreAdded");
@@ -1503,7 +1503,7 @@ private:
             CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
             CL_Spin &year = *CL_Spin::get_named_item(page, "year");
             CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
-            CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+            CL_TextEdit &comment = *CL_TextEdit::get_named_item(page, "comment");
             CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
             CL_Spin &season = *CL_Spin::get_named_item(page, "season");
 
@@ -1564,7 +1564,7 @@ private:
             CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
             CL_Spin &year = *CL_Spin::get_named_item(page, "year");
             CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
-            CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+            CL_TextEdit &comment = *CL_TextEdit::get_named_item(page, "comment");
             CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
             CL_Spin &season = *CL_Spin::get_named_item(page, "season");
             
@@ -1629,7 +1629,7 @@ private:
         CL_LineEdit &title = *CL_LineEdit::get_named_item(page, "title");
         CL_Spin &year = *CL_Spin::get_named_item(page, "year");
         CL_Slider &rating = *CL_Slider::get_named_item(page, "rating");
-        CL_LineEdit &comment = *CL_LineEdit::get_named_item(page, "comment");
+        CL_TextEdit &comment = *CL_TextEdit::get_named_item(page, "comment");
         CL_Spin &episodes = *CL_Spin::get_named_item(page, "episodes");
         CL_Spin &season = *CL_Spin::get_named_item(page, "season");
 

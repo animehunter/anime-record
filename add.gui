@@ -6,16 +6,15 @@
 	<slider class="" id="rating" enabled="true" min="0" max="10" ticks="10" page_step="1" anchor_tl="0" anchor_br="0" dist_tl_x="59" dist_tl_y="308" dist_br_x="506" dist_br_y="333" geom="59,308,506,333"/>
 	<label class="" id="ratingLabel" enabled="true" text="/10" anchor_tl="0" anchor_br="0" dist_tl_x="517" dist_tl_y="308" dist_br_x="558" dist_br_y="326" geom="517,308,558,326"/>
 	<label class="" id="label6" enabled="true" text="Rating" anchor_tl="0" anchor_br="0" dist_tl_x="18" dist_tl_y="308" dist_br_x="55" dist_br_y="326" geom="18,308,55,326"/>
-	<button class="" id="add" enabled="true" text="Add" anchor_tl="0" anchor_br="0" dist_tl_x="151" dist_tl_y="386" dist_br_x="226" dist_br_y="409" geom="151,386,226,409"/>
+	<button class="" id="add" enabled="true" text="Add" anchor_tl="0" anchor_br="0" dist_tl_x="158" dist_tl_y="543" dist_br_x="233" dist_br_y="566" geom="158,543,233,566"/>
 	<spin class="" id="year" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="60" dist_br_x="127" dist_br_y="83" geom="35,60,127,83"/>
-	<lineedit class="" id="comment" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="10" dist_tl_y="353" dist_br_x="547" dist_br_y="376" geom="10,353,547,376"/>
 	<label class="" id="label1" enabled="true" text="Episodes" anchor_tl="0" anchor_br="0" dist_tl_x="161" dist_tl_y="60" dist_br_x="206" dist_br_y="83" geom="161,60,206,83"/>
 	<spin class="" id="episodes" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="211" dist_tl_y="60" dist_br_x="299" dist_br_y="83" geom="211,60,299,83"/>
 	<label class="" id="label1" enabled="true" text="Season" anchor_tl="0" anchor_br="0" dist_tl_x="324" dist_tl_y="60" dist_br_x="362" dist_br_y="83" geom="324,60,362,83"/>
 	<spin class="" id="season" enabled="true" anchor_tl="0" anchor_br="0" dist_tl_x="367" dist_tl_y="60" dist_br_x="452" dist_br_y="83" geom="367,60,452,83"/>
-	<button class="" id="clear" enabled="true" text="Clear" anchor_tl="0" anchor_br="0" dist_tl_x="311" dist_tl_y="386" dist_br_x="386" dist_br_y="409" geom="311,386,386,409"/>
+	<button class="" id="clear" enabled="true" text="Clear" anchor_tl="0" anchor_br="0" dist_tl_x="318" dist_tl_y="543" dist_br_x="393" dist_br_y="566" geom="318,543,393,566"/>
 	<button class="" id="search" enabled="true" text="Search" anchor_tl="0" anchor_br="0" dist_tl_x="331" dist_tl_y="28" dist_br_x="379" dist_br_y="48" geom="331,28,379,48"/>
-	<button class="" id="update" enabled="true" text="Update" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="386" dist_br_x="306" dist_br_y="409" geom="231,386,306,409"/>
+	<button class="" id="update" enabled="true" text="Update" anchor_tl="0" anchor_br="0" dist_tl_x="238" dist_tl_y="543" dist_br_x="313" dist_br_y="566" geom="238,543,313,566"/>
 	<label class="" id="label1" enabled="true" text="% = Wildcard" anchor_tl="0" anchor_br="0" dist_tl_x="384" dist_tl_y="28" dist_br_x="452" dist_br_y="48" geom="384,28,452,48"/>
 	<lineedit class="" id="id" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="35" dist_tl_y="3" dist_br_x="146" dist_br_y="23" geom="35,3,146,23"/>
 	<label class="" id="label1" enabled="true" text="ID" anchor_tl="0" anchor_br="0" dist_tl_x="18" dist_tl_y="3" dist_br_x="30" dist_br_y="16" geom="18,3,30,16"/>
@@ -33,5 +32,6 @@
 	</listview>
 	<button class="" id="addGenre" enabled="true" text="---&gt;" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="162" dist_br_x="326" dist_br_y="185" geom="231,162,326,185"/>
 	<button class="" id="removeGenre" enabled="true" text="&lt;---" anchor_tl="0" anchor_br="0" dist_tl_x="231" dist_tl_y="205" dist_br_x="326" dist_br_y="228" geom="231,205,326,228"/>
-	<dialog width="559" height="416"/>
+	<textedit class="" id="comment" enabled="true" text="" anchor_tl="0" anchor_br="0" dist_tl_x="11" dist_tl_y="353" dist_br_x="548" dist_br_y="535" geom="11,353,548,535"/>
+	<dialog width="559" height="572"/>
 </gui>
