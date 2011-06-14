@@ -31,11 +31,6 @@
 #include <ClanLib/gl.h>
 #endif
 
-// hack fix, should be in clanlib 2.3 svn 
-#ifndef cl_dynamic_cast_pointer
-#define cl_dynamic_cast_pointer std::dynamic_pointer_cast
-#endif
-
 enum VIEWING_STATUS { UNKNOWN=0, WATCHING=1, COMPLETED=2, ONHOLD=3, DROPPED=4, PLANNING=6 };
 enum VIEWING_STATUS_MASK { UNKNOWN_MASK=0, WATCHING_MASK=(1<<1), COMPLETED_MASK=(1<<2), ONHOLD_MASK=(1<<3), DROPPED_MASK=(1<<4), PLANNING_MASK=(1<<6) };
 
@@ -991,6 +986,9 @@ class SearchPage : public Page
 
         if(maxWidth > 0) titleColumn.set_width(maxWidth);
 
+        int ellipseWidth = font.get_text_size(result->get_gc(), "...  ").width + padding;
+        commentColumn.set_width(result->get_width() - titleColumn.get_width()-ratingColumn.get_width()-ellipseWidth);
+
         while(child.is_null() == false)
         {
             child.set_userdata(CL_SharedPtr<ShowItem>());
@@ -1009,7 +1007,7 @@ class SearchPage : public Page
     {
         if(result->get_selected_item().is_null() == false)
         {
-            CL_SharedPtr<std::pair<int,ShowItem> > show = cl_dynamic_cast_pointer<std::pair<int,ShowItem> >(result->get_selected_item().get_userdata());
+            CL_SharedPtr<std::pair<int,ShowItem> > show = cl_dynamic_pointer_cast<std::pair<int,ShowItem> >(result->get_selected_item().get_userdata());
             if(show)
             {
                 if(show->second.genres.empty())
@@ -1083,6 +1081,9 @@ public:
         next(CL_PushButton::get_named_item(page, "next")),
         edit(CL_PushButton::get_named_item(page, "edit"))
     {
+        result->show_detail_icon(false);
+        result->show_detail_opener(false);
+
         search->func_enter_pressed().set(this, &SearchPage::on_search_enter_pressed);
 
         //previous->func_clicked().set(this, &SearchPage::on_previous_clicked);
@@ -1154,6 +1155,11 @@ public:
         CL_PushButton &addGenre = *CL_PushButton::get_named_item(page, "addGenre");
         CL_PushButton &removeGenre = *CL_PushButton::get_named_item(page, "removeGenre");
 
+        genreSelection.show_detail_icon(false);
+        genreSelection.show_detail_opener(false);
+        genreAdded.show_detail_icon(false);
+        genreAdded.show_detail_opener(false);
+
         genrePopMenu.insert_item("Anime");
         genrePopMenu.insert_item("Film");
         genrePopMenu.insert_item("TV");
@@ -1196,6 +1202,7 @@ public:
         refresh_available_genre_list();
 
         CL_ListViewColumnHeader header = genreAdded.get_header()->create_column("genreAdded", "Selected Genre(0)");
+        header.set_width(genreAdded.get_width());
         genreAdded.get_header()->append(header);
 
         genreSelection.set_multi_select(false);
@@ -1244,6 +1251,7 @@ private:
         if(genreSelection.get_header()->get_column("genreSelection").is_null())
         {
             CL_ListViewColumnHeader header = genreSelection.get_header()->create_column("genreSelection", "Available Genre");
+            header.set_width(genreSelection.get_width());
             genreSelection.get_header()->append(header);
         }
 
@@ -1284,7 +1292,7 @@ private:
                 CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
                 while(child.is_null() == false)
                 {
-                    CL_SharedPtr<GenreItem> item = cl_dynamic_cast_pointer<GenreItem>(child.get_userdata());
+                    CL_SharedPtr<GenreItem> item = cl_dynamic_pointer_cast<GenreItem>(child.get_userdata());
                     items.push_back(item);
                     child = child.get_next_sibling();
                 }
@@ -1337,7 +1345,7 @@ private:
         CL_ListViewItem child = genreAdded.get_document_item().get_first_child();
         while(child.is_null() == false)
         {
-            CL_SharedPtr<GenreItem> item = cl_dynamic_cast_pointer<GenreItem>(child.get_userdata());
+            CL_SharedPtr<GenreItem> item = cl_dynamic_pointer_cast<GenreItem>(child.get_userdata());
             genres.push_back(*item);
             child = child.get_next_sibling();
         }
@@ -1805,6 +1813,9 @@ class ViewPage : public Page
             child = child.get_next_sibling();
         }
         if(maxWidth > 0) titleColumn.set_width(maxWidth);
+
+        int ellipseWidth = font.get_text_size(result->get_gc(), "...  ").width + padding;
+        commentColumn.set_width(result->get_width() - titleColumn.get_width()-ratingColumn.get_width()-ellipseWidth);
         
         while(child.is_null() == false)
         {
@@ -1843,7 +1854,7 @@ class ViewPage : public Page
     {
         if(result->get_selected_item().is_null() == false)
         {
-            CL_SharedPtr<ShowItem> show = cl_dynamic_cast_pointer<ShowItem>(result->get_selected_item().get_userdata());
+            CL_SharedPtr<ShowItem> show = cl_dynamic_pointer_cast<ShowItem>(result->get_selected_item().get_userdata());
             if(show)
             {
                 tabMan->display_show_item(*show);
@@ -1885,6 +1896,9 @@ public:
           planning(CL_CheckBox::get_named_item(page, "planning")), 
           dropped(CL_CheckBox::get_named_item(page, "dropped"))
     {        
+        result->show_detail_icon(false);
+        result->show_detail_opener(false);
+
         page->func_visibility_change().set(this, &ViewPage::on_visiblity_changed);
 
         search->func_after_edit_changed().set(this, &ViewPage::on_search_edit);
