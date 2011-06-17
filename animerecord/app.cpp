@@ -39,14 +39,14 @@ static const int ALL_VIEWING_STATUS_MASK = UNKNOWN_MASK|WATCHING_MASK|COMPLETED_
 template<class StrType>
 StrType trimmed( StrType const& str, char const* sepSet=" \n\r\t")
 {
-    StrType::size_type const first = str.find_first_not_of(sepSet);
+    typename StrType::size_type const first = str.find_first_not_of(sepSet);
     return ( first==StrType::npos) ? StrType() : str.substr(first, str.find_last_not_of(sepSet)-first+1);
 }
 
 template<class StrType>
 StrType clean (const StrType &oldStr, const StrType &bad) 
 {
-    StrType::iterator s, d;
+    typename StrType::iterator s, d;
     StrType str = oldStr;
 
     for (s = str.begin(), d = s; s != str.end(); ++ s)
