@@ -1,14 +1,3 @@
-/* --------------------------------------------------------------------- */
-/* Project Element Evil                                                  */
-/* Copyright (C) 2009-2010 Chen "Hunter" Zhao                            */
-/* All Rights Reserved                                                   */
-/*                                                                       */
-/* The following is a list people who has contributed to this project:   */
-/*                                                                       */
-/*     Chen Zhao <animehunter@gmail.com> - Core developer/Project leader */
-/*     (If your name is not here, please contact me to get it added)     */
-/* --------------------------------------------------------------------- */
-
 
 #ifndef MessageDialog_h__
 #define MessageDialog_h__
