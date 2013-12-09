@@ -1,3 +1,5 @@
+#Anime Record by Hunter
+
 
 Screenshots: 
 -------------
@@ -14,3 +16,11 @@ Dependencies:
 -------------
 
 Requires Clanlib 2.3 to compile
+
+
+Legal Crap:
+-----------
+
+Do whatever you want with this (TM).
+
+
